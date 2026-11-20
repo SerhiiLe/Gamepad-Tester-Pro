@@ -32,6 +32,8 @@ class PollingAnalyzer:
         self.avg_delta_ms: float = 4.0
         self.min_delta_ms: float = float('inf')
         self.max_delta_ms: float = 0.0
+        self.min_k1_ms: float = float('inf')
+        self.max_k1_ms: float = 0.0
         self.jitter_stddev_ms: float = 0.0
         self.packet_count: int = 0
         self.dedup_packets_count: int = 0
@@ -47,6 +49,8 @@ class PollingAnalyzer:
         self.avg_delta_ms = self.base_interval_ms
         self.min_delta_ms = float('inf')
         self.max_delta_ms = 0.0
+        self.min_k1_ms = float('inf')
+        self.max_k1_ms = 0.0
         self.jitter_stddev_ms = 0.0
         self.packet_count = 0
         self.dedup_packets_count = 0
@@ -83,8 +87,12 @@ class PollingAnalyzer:
                             self.dropped_packets_count += 1
 
                     self._norm_deltas_ms.append(norm_d)
-                    if abs(delta_ms - self.base_interval_ms) <= 0.35 * self.base_interval_ms:
+                    if abs(delta_ms - self.base_interval_ms) <= 0.30 * self.base_interval_ms:
                         self._k1_deltas_ms.append(delta_ms)
+                        if delta_ms < self.min_k1_ms:
+                            self.min_k1_ms = delta_ms
+                        if delta_ms > self.max_k1_ms:
+                            self.max_k1_ms = delta_ms
 
         self._timestamps.append(timestamp)
 
@@ -118,6 +126,8 @@ class PollingAnalyzer:
             self.avg_delta_ms = sum(k1_samples) / len(k1_samples)
             var = sum((d - self.avg_delta_ms) ** 2 for d in k1_samples) / len(k1_samples)
             self.jitter_stddev_ms = math.sqrt(var)
+            self.min_k1_ms = min(k1_samples)
+            self.max_k1_ms = max(k1_samples)
         elif self.base_interval_ms > 0:
             self.avg_delta_ms = self.base_interval_ms
 
@@ -132,8 +142,8 @@ class PollingAnalyzer:
             "nominal_target_hz": self.nominal_hz,
             "base_interval_ms": round(self.base_interval_ms, 2),
             "avg_interval_ms": round(self.avg_delta_ms, 3),
-            "min_interval_ms": round(self.min_delta_ms if self.min_delta_ms != float('inf') else 0, 3),
-            "max_interval_ms": round(self.max_delta_ms, 3),
+            "min_interval_ms": round(self.min_k1_ms if self.min_k1_ms != float('inf') else self.base_interval_ms, 3),
+            "max_interval_ms": round(self.max_k1_ms if self.max_k1_ms > 0 else self.base_interval_ms, 3),
             "jitter_stddev_ms": round(self.jitter_stddev_ms, 3),
             "total_packets": self.packet_count,
             "dedup_packets": self.dedup_packets_count,
