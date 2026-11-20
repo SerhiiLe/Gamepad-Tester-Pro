@@ -44,6 +44,17 @@ class GamepadDevice:
         self.is_xbox = ("xbox" in lower_name or self.vendor_id == 0x045E or "x-box" in lower_name)
         self.is_gp2040 = ("gp2040" in lower_name or "rp2040" in lower_name or self.vendor_id == 0x2E8A)
 
+        # Sysfs paths for LEDs and Battery
+        self.sysfs_led_path = self._find_sysfs_led()
+        self.sysfs_battery_path = self._find_sysfs_battery()
+
+        # Connection type: Bluetooth or battery-powered wireless vs wired USB
+        self.is_wireless: bool = (
+            self.bus == 0x05 or
+            bool(self.sysfs_battery_path) or
+            ("wireless" in lower_name and "receiver" not in lower_name and "adapter" not in lower_name)
+        )
+
         # Force feedback state
         self._ff_fd: Optional[int] = None
         self.active_effect_id: int = -1
@@ -54,10 +65,6 @@ class GamepadDevice:
         self.has_touchpad: bool = False
         self.has_motion: bool = False
         self._probe_siblings()
-
-        # Sysfs paths for LEDs and Battery
-        self.sysfs_led_path = self._find_sysfs_led()
-        self.sysfs_battery_path = self._find_sysfs_battery()
 
     def _check_ff_support(self) -> bool:
         """Checks if event device supports Force Feedback (EV_FF)."""

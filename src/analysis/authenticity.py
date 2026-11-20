@@ -175,3 +175,4 @@ def analyze_authenticity(device_info: Dict[str, Any],
         comment=comment,
         is_replica=is_replica
     )
+

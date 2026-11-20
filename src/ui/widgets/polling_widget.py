@@ -58,7 +58,7 @@ class PollingWidget(QWidget):
         self.curve = self.plot.plot([], [], pen=pg.mkPen('#0284C7', width=1.5))
         layout.addWidget(self.plot)
 
-        self.lbl_note = QLabel("ℹ️ <b>Стабильность опроса:</b> На графике отображается время (мс) между пакетами опроса контроллера. Ровная горизонтальная линия означает стабильную передачу без джиттера.")
+        self.lbl_note = QLabel("ℹ️ <b>Стабильность шины:</b> Вращайте стики по кругу для замера частоты. Для проводных геймпадов отсечение одинаковых пакетов драйвером Linux является штатным (не потеря кадров). Осциллограф отображает выровненный интервал шины и реальный аппаратный джиттер.")
         self.lbl_note.setStyleSheet("font-size: 11px; color: #94A3B8;")
         layout.addWidget(self.lbl_note)
 
@@ -71,36 +71,38 @@ class PollingWidget(QWidget):
         self.curve.setData([], [])
 
     def update_view(self):
-        hz = self.analyzer.current_hz
+        hz = self.analyzer.current_hz if self.analyzer.current_hz > 0 else float(self.analyzer.nominal_hz)
         self.lbl_hz.setText(f"<b>{hz:.1f} Гц</b>")
+
+        target_ms = self.analyzer.base_interval_ms if self.analyzer.base_interval_ms > 0 else 4.0
 
         # Color based on common standard rates
         if hz >= 900:
             color = "#10B981"  # 1000 Hz (GP2040-CE / Overclocked)
-            target_ms = 1.0
         elif hz >= 450:
             color = "#06B6D4"  # 500 Hz
-            target_ms = 2.0
         elif hz >= 200:
-            color = "#3B82F6"  # 250 Hz (DualSense BT default)
-            target_ms = 4.0
+            color = "#3B82F6"  # 250 Hz (Standard Xbox 360 / DualSense BT)
         else:
-            color = "#F59E0B"  # 125 Hz (Standard Xbox / generic)
-            target_ms = 8.0
+            color = "#F59E0B"  # 125 Hz (Standard USB HID)
 
         self.lbl_hz.setStyleSheet(f"font-size: 32px; color: {color}; font-weight: bold;")
         self.target_line.setData([-100, 1000], [target_ms, target_ms])
 
+        conn_type = "Беспроводной" if self.analyzer.is_wireless else "Проводной USB"
+        drops_tag = f"Потерь: <b>{self.analyzer.dropped_packets_count}</b>" if self.analyzer.is_wireless else "Потери исключены"
+
         self.lbl_stats.setText(
-            f"Интервал dt: <b>{self.analyzer.avg_delta_ms:.2f} мс</b> | "
+            f"Шина: <b>{target_ms:.2f} мс</b> | "
             f"Джиттер: <b>{self.analyzer.jitter_stddev_ms:.3f} мс</b> | "
-            f"Пакетов: {self.analyzer.packet_count} (Пропусков: {self.analyzer.dropped_packets_count})"
+            f"Канал: <b>{conn_type}</b> | "
+            f"Отсечено дублей: {self.analyzer.dedup_packets_count} | {drops_tag}"
         )
 
-        # Plot last 150 deltas
-        if self.analyzer._deltas_ms:
-            deltas = list(self.analyzer._deltas_ms)[-150:]
+        # Plot last 150 normalized deltas (unfolded from deduplication multiples)
+        plot_source = self.analyzer._norm_deltas_ms if self.analyzer._norm_deltas_ms else self.analyzer._deltas_ms
+        if plot_source:
+            deltas = list(plot_source)[-150:]
             self.curve.setData(list(range(len(deltas))), deltas)
-            # Dynamic Y range
             max_d = max(deltas)
-            self.plot.setYRange(0, max(10, max_d * 1.3))
+            self.plot.setYRange(0, max(target_ms * 2.5, max_d * 1.3))

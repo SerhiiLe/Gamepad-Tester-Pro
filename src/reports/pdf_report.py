@@ -82,7 +82,7 @@ def generate_pdf_report(output_filepath: str,
                          left_stick: Dict[str, Any],
                          right_stick: Dict[str, Any],
                          triggers_data: Dict[str, Any]) -> bool:
-    """Generates a professional diagnostic PDF report with full Cyrillic support."""
+    """Generates a professional diagnostic PDF report strictly fitted onto a single A4 page."""
     global LAST_PDF_ERROR
     LAST_PDF_ERROR = ""
 
@@ -93,7 +93,6 @@ def generate_pdf_report(output_filepath: str,
 
     # Check write access to destination path before building document
     try:
-        # If file exists, try appending/opening for write to ensure not locked by another process
         with open(output_filepath, 'a' if os.path.exists(output_filepath) else 'w') as test_f:
             pass
     except PermissionError:
@@ -113,54 +112,62 @@ def generate_pdf_report(output_filepath: str,
     _setup_cyrillic_font()
 
     try:
+        # Compact margins to guarantee 1 page A4 layout (total width = 595.27, height = 841.89)
         doc = SimpleDocTemplate(
             output_filepath,
             pagesize=A4,
-            leftMargin=36,
-            rightMargin=36,
-            topMargin=36,
-            bottomMargin=36
+            leftMargin=28,
+            rightMargin=28,
+            topMargin=22,
+            bottomMargin=22
         )
 
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             'TitleStyle',
             fontName=_REG_FONT_BOLD,
-            fontSize=18,
-            leading=22,
+            fontSize=13,
+            leading=16,
             textColor=colors.HexColor('#1E293B'),
-            spaceAfter=6
+            spaceAfter=2
         )
         subtitle_style = ParagraphStyle(
             'SubTitleStyle',
             fontName=_REG_FONT_NAME,
-            fontSize=9,
-            leading=13,
+            fontSize=7.5,
+            leading=9.5,
             textColor=colors.HexColor('#64748B'),
-            spaceAfter=12
+            spaceAfter=4
         )
         h2_style = ParagraphStyle(
             'H2Style',
             fontName=_REG_FONT_BOLD,
-            fontSize=12,
-            leading=16,
+            fontSize=9.5,
+            leading=12,
             textColor=colors.HexColor('#0F172A'),
-            spaceBefore=10,
-            spaceAfter=6
+            spaceBefore=4,
+            spaceAfter=2
         )
         body_style = ParagraphStyle(
             'Body',
             fontName=_REG_FONT_NAME,
-            fontSize=9,
-            leading=12,
+            fontSize=7.5,
+            leading=9.5,
             textColor=colors.HexColor('#334155')
         )
         bold_style = ParagraphStyle(
             'Bold',
             fontName=_REG_FONT_BOLD,
-            fontSize=9,
-            leading=12,
+            fontSize=7.5,
+            leading=9.5,
             textColor=colors.HexColor('#0F172A')
+        )
+        footer_style = ParagraphStyle(
+            'Footer',
+            fontName=_REG_FONT_NAME,
+            fontSize=6.5,
+            leading=8.5,
+            textColor=colors.HexColor('#64748B')
         )
 
         elements = []
@@ -168,9 +175,9 @@ def generate_pdf_report(output_filepath: str,
         # Header
         elements.append(Paragraph("🎮 Паспорт технического состояния геймпада", title_style))
         elements.append(Paragraph(f"Дата проверки: {time.strftime('%Y-%m-%d %H:%M:%S')} | Комплекс: Gamepad Tester Pro 2.0", subtitle_style))
-        elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0284C7'), spaceAfter=10))
+        elements.append(HRFlowable(width="100%", thickness=1.0, color=colors.HexColor('#0284C7'), spaceAfter=4))
 
-        # Device Info Table (escaped safely)
+        # Device Info Table (width = 538)
         dev_name = html.escape(str(device_info.get('name', 'Unknown')))
         dev_path = html.escape(str(device_info.get('event_path', 'N/A')))
         dev_layout = html.escape(str(device_info.get('layout', 'Standard')))
@@ -182,22 +189,23 @@ def generate_pdf_report(output_filepath: str,
             [Paragraph("Интерфейс подключения", body_style), Paragraph(dev_path, body_style)],
             [Paragraph("Профиль раскладки", body_style), Paragraph(dev_layout, body_style)],
         ]
-        t_dev = Table(dev_table_data, colWidths=[160, 360])
+        t_dev = Table(dev_table_data, colWidths=[140, 398])
         t_dev.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ]))
         elements.append(t_dev)
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 4))
 
         # Authenticity & Hardware Profile Analysis
         auth = analyze_authenticity(device_info, left_stick, right_stick, triggers_data)
 
         # Overall Status Verdict
         has_chatter = buttons_data.get("status") != "PASS"
-        has_snapback = (left_stick.get("snapback_flicks", 0) > 0 or right_stick.get("snapback_flicks", 0) > 0 or
+        has_snapback = (left_stick.get("snapback_flicks_x", 0) > 0 or left_stick.get("snapback_flicks_y", 0) > 0 or
+                        right_stick.get("snapback_flicks_x", 0) > 0 or right_stick.get("snapback_flicks_y", 0) > 0 or
                         left_stick.get("snapback_count", 0) > 0 or right_stick.get("snapback_count", 0) > 0)
         has_circ_err = (left_stick.get("circularity_error_pct", 0) > 8.0 or right_stick.get("circularity_error_pct", 0) > 8.0)
 
@@ -215,19 +223,19 @@ def generate_pdf_report(output_filepath: str,
         v_style = ParagraphStyle(
             'Verdict',
             fontName=_REG_FONT_BOLD,
-            fontSize=10,
-            leading=14,
+            fontSize=8.5,
+            leading=11,
             textColor=text_color
         )
-        verdict_table = Table([[Paragraph(verdict_text, v_style)]], colWidths=[520])
+        verdict_table = Table([[Paragraph(verdict_text, v_style)]], colWidths=[538])
         verdict_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), bg_color),
             ('BOX', (0, 0), (-1, -1), 1, border_color),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
         ]))
         elements.append(verdict_table)
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 4))
 
         ls_gate = left_stick.get('gate_shape', '')
         ls_bezel_tag = " (без безеля)" if ("без безеля" in ls_gate.lower() or "квадрат" in ls_gate.lower()) else ""
@@ -241,19 +249,47 @@ def generate_pdf_report(output_filepath: str,
             trig_strs.append(f"<b>{name}:</b> ход 0..{t.get('raw_max', 255)} ({t.get('current_val_pct', 0):.1f}%)")
         trig_display = " | ".join(trig_strs) if trig_strs else "Не тестировались"
 
+        # Polling rate formatting
+        is_wireless = polling_data.get('is_wireless', False)
+        conn_str = "Беспроводное" if is_wireless else "Проводное USB"
+        drops_cnt = polling_data.get('dropped_packets', 0)
+        drops_str = f"Потерь: <b>{drops_cnt}</b>" if is_wireless else "Потери исключены (USB)"
+        poll_details = (
+            f"Шина: <b>{polling_data.get('current_hz', 0)} Гц</b> (номинал ~{polling_data.get('nominal_target_hz', 0)} Гц) | "
+            f"Джиттер: <b>{polling_data.get('jitter_stddev_ms', 0)} мс</b><br/>"
+            f"Тип: {conn_str} | {drops_str} | Отсечено дублей ядра: {polling_data.get('dedup_packets', 0)}"
+        )
+        poll_verdict = "Норма" if polling_data.get("status") == "PASS" else "<font color='#DC2626'><b>Джиттер</b></font>"
+
+        # Buttons chatter & faulty buttons formatting
+        faulty = buttons_data.get("faulty_buttons", [])
+        if faulty:
+            btn_details = (
+                f"Проверено: {buttons_data.get('total_buttons_tested', 0)} | "
+                f"Дребезг (&lt; 7 мс): <b>{buttons_data.get('total_chatter_events', 0)}</b><br/>"
+                f"<font color='#DC2626'>⚠️ <b>Кнопки с дребезгом:</b> {html.escape(', '.join(faulty))}</font>"
+            )
+            btn_verdict = "<font color='#DC2626'><b>Дребезг!</b></font>"
+        else:
+            btn_details = (
+                f"Проверено: {buttons_data.get('total_buttons_tested', 0)} | "
+                f"Дребезг (&lt; 7 мс): <b>0</b> (не выявлен)"
+            )
+            btn_verdict = "Без дребезга"
+
         # Detailed Test Results Table
         elements.append(Paragraph("Результаты измерений по узлам", h2_style))
         results_data = [
             [Paragraph("Узел / Тест", bold_style), Paragraph("Измеренные параметры", bold_style), Paragraph("Вердикт", bold_style)],
             [
                 Paragraph("Шина и опрос", bold_style),
-                Paragraph(f"Частота: <b>{polling_data.get('current_hz', 0)} Гц</b> | Джиттер dt: <b>{polling_data.get('jitter_stddev_ms', 0)} мс</b> | Пропусков: {polling_data.get('dropped_packets', 0)}", body_style),
-                Paragraph("Норма" if polling_data.get("status") == "PASS" else "Высокий джиттер", body_style)
+                Paragraph(poll_details, body_style),
+                Paragraph(poll_verdict, body_style)
             ],
             [
                 Paragraph("Кнопки (Дребезг)", bold_style),
-                Paragraph(f"Проверено: {buttons_data.get('total_buttons_tested', 0)} | Событий &lt; 7 мс: <b>{buttons_data.get('total_chatter_events', 0)}</b>", body_style),
-                Paragraph("Без дребезга" if not has_chatter else "Дребезг!", body_style)
+                Paragraph(btn_details, body_style),
+                Paragraph(btn_verdict, body_style)
             ],
             [
                 Paragraph("Левый стик", bold_style),
@@ -263,7 +299,7 @@ def generate_pdf_report(output_filepath: str,
                     f"Snapback Y: <b>{left_stick.get('snapback_rate_y_pct', 0):.0f}%</b> ({left_stick.get('snapback_flicks_y', 0)}/{left_stick.get('total_flicks_y', 0)}, вылет {left_stick.get('max_snapback_y_pct', 0):.1f}%)",
                     body_style
                 ),
-                Paragraph("Норма" if left_stick.get("status") == "PASS" else "Отклонение", body_style)
+                Paragraph("Норма" if left_stick.get("status") == "PASS" else "<font color='#DC2626'><b>Отклонение</b></font>", body_style)
             ],
             [
                 Paragraph("Правый стик", bold_style),
@@ -273,7 +309,7 @@ def generate_pdf_report(output_filepath: str,
                     f"Snapback Y: <b>{right_stick.get('snapback_rate_y_pct', 0):.0f}%</b> ({right_stick.get('snapback_flicks_y', 0)}/{right_stick.get('total_flicks_y', 0)}, вылет {right_stick.get('max_snapback_y_pct', 0):.1f}%)",
                     body_style
                 ),
-                Paragraph("Норма" if right_stick.get("status") == "PASS" else "Отклонение", body_style)
+                Paragraph("Норма" if right_stick.get("status") == "PASS" else "<font color='#DC2626'><b>Отклонение</b></font>", body_style)
             ],
             [
                 Paragraph("Триггеры (Курки)", bold_style),
@@ -282,17 +318,17 @@ def generate_pdf_report(output_filepath: str,
             ],
         ]
 
-        t_res = Table(results_data, colWidths=[120, 310, 90])
+        t_res = Table(results_data, colWidths=[110, 348, 80])
         t_res.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F8FAFC')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ]))
         elements.append(t_res)
 
         # Hardware Architecture & Authenticity Section
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 4))
         elements.append(Paragraph("Предполагаемые характеристики и аппаратная подлинность", h2_style))
 
         badge_bg = colors.HexColor('#FEF3C7') if auth.is_replica else colors.HexColor('#DCFCE7')
@@ -301,8 +337,8 @@ def generate_pdf_report(output_filepath: str,
         verdict_badge_style = ParagraphStyle(
             'VerdictBadge',
             fontName=_REG_FONT_BOLD,
-            fontSize=9,
-            leading=12,
+            fontSize=7.5,
+            leading=9.5,
             textColor=badge_text_color
         )
 
@@ -317,18 +353,18 @@ def generate_pdf_report(output_filepath: str,
             [Paragraph("Экспертный вывод", body_style), Paragraph(auth.comment, body_style)],
         ]
 
-        t_arch = Table(arch_table_data, colWidths=[150, 370])
+        t_arch = Table(arch_table_data, colWidths=[140, 398])
         t_arch.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ('BACKGROUND', (1, 6), (1, 6), badge_bg),
         ]))
         elements.append(t_arch)
 
-        elements.append(Spacer(1, 15))
-        elements.append(Paragraph("Отчёт сформирован программным комплексом Gamepad Tester Pro. Предназначен для контроля качества, ремонта и верификации датчиков Холла, потенциометров и аппаратных платформ.", subtitle_style))
+        elements.append(Spacer(1, 4))
+        elements.append(Paragraph("Отчёт сформирован программным комплексом Gamepad Tester Pro. Предназначен для контроля качества, ремонта и верификации датчиков Холла, потенциометров и аппаратных платформ.", footer_style))
 
         doc.build(elements)
         return True

@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
         # Reset states and analyzers
         self._prev_hat_x = 0
         self._prev_hat_y = 0
+        self.polling_analyzer.is_wireless = getattr(dev, 'is_wireless', False)
         self.polling_analyzer.reset()
         self.buttons_analyzer.reset()
         self.left_stick_analyzer.reset()
