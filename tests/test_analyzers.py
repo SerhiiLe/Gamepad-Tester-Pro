@@ -195,7 +195,22 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertEqual(summary12["adc_bits"], 12.0)
         self.assertEqual(summary12["adc_step"], 16)
 
-        # 3. Trigger 8-bit test (increments of 1 on span 255)
+        # 3. Stick stops moving: sensor/wiper noise toggles (+/- 1 or +/- 2)
+        # Must retain 12-bit and NEVER jump to 15-bit!
+        noise_vals = [0, 1, -1, 2, -2, 1, 0, -1]
+        for i in range(80):
+            t += 0.002
+            stopped_val = round(y) + noise_vals[i % len(noise_vals)]
+            stick12.update_axis(0x00, stopped_val, t, is_x=True)
+            stick12.update_axis(0x01, stopped_val, t, is_x=False)
+
+        summary_stopped = stick12.get_summary()
+        self.assertEqual(summary_stopped["adc_bits_x"], 12.0)
+        self.assertEqual(summary_stopped["adc_bits_y"], 12.0)
+        self.assertEqual(summary_stopped["adc_bits"], 12.0)
+        self.assertEqual(summary_stopped["adc_step"], 16)
+
+        # 4. Trigger 8-bit test (increments of 1 on span 255)
         from src.analysis.triggers import TriggersAnalyzer
         triggers = TriggersAnalyzer()
         t_val = 0

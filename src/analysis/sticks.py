@@ -109,18 +109,8 @@ class StickAnalyzer:
         # ADC Quantization & Resolution measurement (discrete buffer in Stage 0)
         self._prev_raw_x: Optional[int] = None
         self._prev_raw_y: Optional[int] = None
-        self._adc_raw_buffer_x = collections.deque(maxlen=150)
-        self._adc_raw_buffer_y = collections.deque(maxlen=150)
-        self._adc_dwell_buffer_x = collections.deque(maxlen=100)
-        self._adc_dwell_buffer_y = collections.deque(maxlen=100)
-        self._adc_burst_buffer_x = collections.deque(maxlen=100)
-        self._adc_burst_buffer_y = collections.deque(maxlen=100)
-        self._adc_hold_count_x: int = 0
-        self._adc_hold_count_y: int = 0
-        self._adc_prev_abs_d_x: int = 0
-        self._adc_prev_abs_d_y: int = 0
-        self._adc_curr_burst_x: int = 0
-        self._adc_curr_burst_y: int = 0
+        self._adc_raw_buffer_x = collections.deque(maxlen=120)
+        self._adc_raw_buffer_y = collections.deque(maxlen=120)
         self._adc_sample_counter: int = 0
         self.adc_step_x: int = 0
         self.adc_step_y: int = 0
@@ -177,16 +167,6 @@ class StickAnalyzer:
         self._prev_raw_y = None
         self._adc_raw_buffer_x.clear()
         self._adc_raw_buffer_y.clear()
-        self._adc_dwell_buffer_x.clear()
-        self._adc_dwell_buffer_y.clear()
-        self._adc_burst_buffer_x.clear()
-        self._adc_burst_buffer_y.clear()
-        self._adc_hold_count_x = 0
-        self._adc_hold_count_y = 0
-        self._adc_prev_abs_d_x = 0
-        self._adc_prev_abs_d_y = 0
-        self._adc_curr_burst_x = 0
-        self._adc_curr_burst_y = 0
         self._adc_sample_counter = 0
         self.adc_step_x = 0
         self.adc_step_y = 0
@@ -265,173 +245,118 @@ class StickAnalyzer:
 
     def _collect_adc_buffer(self, raw_value: int, is_x: bool):
         """
-        Gathers raw coordinate samples into small discrete rolling buffers in Stage 0.
-        Separates into:
-        1. Dwell buffer (values held for >= 2 frames: settled physical levels)
-        2. Burst buffer (integrated impulses: filters out decaying interpolation sub-steps)
-        3. Raw buffer (unique raw values)
+        Gathers raw coordinate samples into discrete rolling buffers in Stage 0.
         Analysis is performed discretely over the small buffer rather than continuously.
         """
-        prev_raw = self._prev_raw_x if is_x else self._prev_raw_y
-        if prev_raw is None:
-            if is_x:
-                self._adc_raw_buffer_x.append(raw_value)
-            else:
-                self._adc_raw_buffer_y.append(raw_value)
-            return
-
-        abs_d = abs(raw_value - prev_raw)
-        if abs_d > 0:
-            if is_x:
-                self._adc_raw_buffer_x.append(raw_value)
-                self._adc_hold_count_x = 0
-            else:
-                self._adc_raw_buffer_y.append(raw_value)
-                self._adc_hold_count_y = 0
-        else:
-            if is_x:
-                self._adc_hold_count_x += 1
-                if self._adc_hold_count_x == 2:
-                    self._adc_dwell_buffer_x.append(raw_value)
-            else:
-                self._adc_hold_count_y += 1
-                if self._adc_hold_count_y == 2:
-                    self._adc_dwell_buffer_y.append(raw_value)
-
-        # Acceleration burst integration (filters decaying sub-steps)
         if is_x:
-            if abs_d == 0:
-                if self._adc_curr_burst_x > 0:
-                    if 1 <= self._adc_curr_burst_x <= 1024:
-                        self._adc_burst_buffer_x.append(self._adc_curr_burst_x)
-                    self._adc_curr_burst_x = 0
-                self._adc_prev_abs_d_x = 0
-            else:
-                if self._adc_prev_abs_d_x > 0 and abs_d >= self._adc_prev_abs_d_x:
-                    if self._adc_curr_burst_x > 0:
-                        if 1 <= self._adc_curr_burst_x <= 1024:
-                            self._adc_burst_buffer_x.append(self._adc_curr_burst_x)
-                    self._adc_curr_burst_x = abs_d
-                else:
-                    self._adc_curr_burst_x += abs_d
-                self._adc_prev_abs_d_x = abs_d
+            self._adc_raw_buffer_x.append(raw_value)
         else:
-            if abs_d == 0:
-                if self._adc_curr_burst_y > 0:
-                    if 1 <= self._adc_curr_burst_y <= 1024:
-                        self._adc_burst_buffer_y.append(self._adc_curr_burst_y)
-                    self._adc_curr_burst_y = 0
-                self._adc_prev_abs_d_y = 0
-            else:
-                if self._adc_prev_abs_d_y > 0 and abs_d >= self._adc_prev_abs_d_y:
-                    if self._adc_curr_burst_y > 0:
-                        if 1 <= self._adc_curr_burst_y <= 1024:
-                            self._adc_burst_buffer_y.append(self._adc_curr_burst_y)
-                    self._adc_curr_burst_y = abs_d
-                else:
-                    self._adc_curr_burst_y += abs_d
-                self._adc_prev_abs_d_y = abs_d
+            self._adc_raw_buffer_y.append(raw_value)
 
         self._adc_sample_counter += 1
-        # Discretely evaluate buffer every 30 samples
-        if self._adc_sample_counter % 30 == 0:
+        # Discretely evaluate buffer every 20 samples
+        if self._adc_sample_counter % 20 == 0:
             self._analyze_adc_buffers()
 
-    def _analyze_buffer_for_axis(self, span: int, dwell_buf, burst_buf, raw_buf) -> Tuple[float, int, int]:
-        """Discretely analyzes buffered levels for a single axis."""
-        # Priority 1: Dwell buffer (settled physical levels)
-        if len(dwell_buf) >= 6:
-            s_vals = sorted(set(dwell_buf))
-            diffs = [s_vals[i] - s_vals[i-1] for i in range(1, len(s_vals)) if 1 <= (s_vals[i] - s_vals[i-1]) <= 1024]
-            if len(diffs) >= 4:
-                res = self._score_quantum_candidates(span, Counter(diffs))
-                if res[0] > 0:
-                    return res
+    def _analyze_buffer_for_axis(self, span: int, raw_buf: collections.deque) -> Optional[Tuple[float, int, int]]:
+        """
+        Robustly extracts the physical hardware ADC step from raw coordinate stream.
+        1. Stationary Deadband: If the stick is held still or resting (span < 120),
+           returns None to prevent capturing smoothed wiper/thermal sensor noise as 15-bit!
+        2. High-speed cutoff: Rejects fast flick intervals (> 250 units/sample).
+        3. Direct hardware quantum: Detects unsmoothed steps (multiples of 8, 16, 32, 64...).
+        4. Transition jerk peaks: Under firmware EMA/IIR filtering, isolates the acceleration
+           spikes occurring at each physical raw quantum conversion (+16 for 12-bit, +64 for 10-bit),
+           yielding the exact hardware step completely independent of hand velocity!
+        5. Fine ADC (13..16 bit): Requires wide physical travel (span >= 800) with >= 20 unique levels.
+        """
+        if len(raw_buf) < 15:
+            return None
 
-        # Priority 2: Burst buffer (integrated impulses, filters decaying smoothing)
-        if len(burst_buf) >= 6:
-            valid_b = [b for b in burst_buf if 1 <= b <= 1024]
-            if len(valid_b) >= 4:
-                res = self._score_quantum_candidates(span, Counter(valid_b))
-                if res[0] > 0:
-                    return res
+        samples = list(raw_buf)
+        total_range = max(samples) - min(samples)
+        # Stationary rejection: stationary wiper noise has peak-to-peak < 120 (out of 65535)
+        if total_range < 120:
+            return None
 
-        # Priority 3: Raw sorted unique levels (for controllers without smoothing)
-        if len(raw_buf) >= 6:
-            s_vals = sorted(set(raw_buf))
-            diffs = [s_vals[i] - s_vals[i-1] for i in range(1, len(s_vals)) if 1 <= (s_vals[i] - s_vals[i-1]) <= 1024]
-            if len(diffs) >= 4:
-                return self._score_quantum_candidates(span, Counter(diffs))
+        diffs = [samples[i] - samples[i-1] for i in range(1, len(samples))]
+        mean_speed = sum(abs(d) for d in diffs) / len(diffs)
+        if mean_speed > 250.0:
+            # Too fast for micro-quantization
+            return None
 
-        return 0.0, 0, 0
+        # Check 1: Direct unsmoothed hardware ADC steps
+        non_zero_d = [abs(d) for d in diffs if d != 0]
+        if len(non_zero_d) >= 6:
+            counts = Counter(non_zero_d)
+            c_step, c_count = counts.most_common(1)[0]
+            if c_step >= 8 and (c_count / len(non_zero_d)) >= 0.35:
+                cand_q = [8, 16, 32, 64, 128, 256]
+                best_q = min(cand_q, key=lambda q: abs(q - c_step))
+                if abs(best_q - c_step) <= max(1, round(best_q * 0.15)):
+                    levels = max(1, round((span + 1) / best_q))
+                    return float(round(math.log2(levels), 1)), best_q, levels
 
-    def _score_quantum_candidates(self, span: int, diff_counts: Counter) -> Tuple[float, int, int]:
-        """Scores candidate hardware powers-of-two against the discrete step distribution."""
-        candidate_bits = [8, 9, 10, 11, 12, 13, 14, 15, 16]
-        candidates = []
-        seen_q = set()
-        for b in candidate_bits:
-            q = max(1, round((span + 1) / (2 ** b)))
-            if q not in seen_q:
-                seen_q.add(q)
-                candidates.append((b, q))
-        # Finest quantum (highest bitness) first
-        candidates.sort(key=lambda x: x[0], reverse=True)
+        # Check 2: Transition jerk peaks under firmware low-pass (EMA) filtering
+        pos_peaks = []
+        for i in range(1, len(diffs) - 1):
+            if diffs[i] >= 2 and diffs[i] > diffs[i-1] and diffs[i] >= diffs[i+1]:
+                pos_peaks.append(i)
 
-        total_w = sum(diff_counts.values())
-        best_b = None
+        neg_peaks = []
+        for i in range(1, len(diffs) - 1):
+            if diffs[i] <= -2 and diffs[i] < diffs[i-1] and diffs[i] <= diffs[i+1]:
+                neg_peaks.append(i)
 
-        for b, q in candidates:
-            tol = max(1, round(q * 0.20))
-            direct_w = sum(w for s, w in diff_counts.items() if abs(s - q) <= tol)
-            # Require at least 25% for 14-16 bit to avoid interpolation noise, 15% for 13, 10% for others
-            req_fraction = 0.25 if b >= 14 else (0.15 if b >= 13 else 0.10)
-            req_direct = max(2, round(total_w * req_fraction))
-            if direct_w >= req_direct:
-                best_b = b
-                break
+        peak_diffs = []
+        if len(pos_peaks) >= 2:
+            for j in range(1, len(pos_peaks)):
+                d_pos = abs(samples[pos_peaks[j]] - samples[pos_peaks[j-1]])
+                if 6 <= d_pos <= 256:
+                    peak_diffs.append(d_pos)
+        if len(neg_peaks) >= 2:
+            for j in range(1, len(neg_peaks)):
+                d_neg = abs(samples[neg_peaks[j]] - samples[neg_peaks[j-1]])
+                if 6 <= d_neg <= 256:
+                    peak_diffs.append(d_neg)
 
-        if best_b is None:
-            most_common = diff_counts.most_common(1)[0][0]
-            levels = max(1, round((span + 1) / most_common))
-            bits = round(math.log2(levels), 1)
-            return bits, most_common, levels
+        if len(peak_diffs) >= 3:
+            sorted_p = sorted(peak_diffs)
+            med = sorted_p[len(sorted_p) // 2]
+            cand_q = [8, 16, 32, 64, 128, 256]
+            best_q = min(cand_q, key=lambda q: abs(q - med))
+            if abs(best_q - med) <= best_q * 0.40:
+                levels = max(1, round((span + 1) / best_q))
+                return float(round(math.log2(levels), 1)), best_q, levels
 
-        levels = 2 ** best_b
-        step = max(1, round((span + 1) / levels))
-        return float(best_b), step, levels
+        # Check 3: Genuine fine ADC (13..16 bit) only on wide physical movement
+        unique_vals = set(samples)
+        if total_range >= 800 and len(unique_vals) >= 20:
+            s_vals = sorted(unique_vals)
+            u_diffs = [s_vals[i] - s_vals[i-1] for i in range(1, len(s_vals)) if 1 <= (s_vals[i] - s_vals[i-1]) <= 64]
+            if len(u_diffs) >= 10:
+                sorted_u = sorted(u_diffs)
+                med_u = sorted_u[len(sorted_u) // 2]
+                for b in [16, 15, 14, 13]:
+                    q = max(1, round((span + 1) / (2 ** b)))
+                    if abs(med_u - q) <= max(1, round(q * 0.35)):
+                        levels = 2 ** b
+                        return float(b), q, levels
+
+        return None
 
     def _analyze_adc_buffers(self, flush_in_flight: bool = False):
         """Updates adc_bits, adc_step, and adc_levels from discrete buffers."""
         span_x = max(1, self.raw_max_x - self.raw_min_x)
         span_y = max(1, self.raw_max_y - self.raw_min_y)
 
-        if flush_in_flight:
-            if self._adc_curr_burst_x > 0:
-                if 1 <= self._adc_curr_burst_x <= 1024:
-                    self._adc_burst_buffer_x.append(self._adc_curr_burst_x)
-                self._adc_curr_burst_x = 0
-            if self._adc_curr_burst_y > 0:
-                if 1 <= self._adc_curr_burst_y <= 1024:
-                    self._adc_burst_buffer_y.append(self._adc_curr_burst_y)
-                self._adc_curr_burst_y = 0
+        res_x = self._analyze_buffer_for_axis(span_x, self._adc_raw_buffer_x)
+        res_y = self._analyze_buffer_for_axis(span_y, self._adc_raw_buffer_y)
 
-        bits_x, step_x, levels_x = self._analyze_buffer_for_axis(
-            span_x, self._adc_dwell_buffer_x, self._adc_burst_buffer_x, self._adc_raw_buffer_x
-        )
-        bits_y, step_y, levels_y = self._analyze_buffer_for_axis(
-            span_y, self._adc_dwell_buffer_y, self._adc_burst_buffer_y, self._adc_raw_buffer_y
-        )
-
-        if bits_x > 0:
-            self.adc_step_x = step_x
-            self.adc_levels_x = levels_x
-            self.adc_bits_x = bits_x
-
-        if bits_y > 0:
-            self.adc_step_y = step_y
-            self.adc_levels_y = levels_y
-            self.adc_bits_y = bits_y
+        if res_x is not None:
+            self.adc_bits_x, self.adc_step_x, self.adc_levels_x = res_x
+        if res_y is not None:
+            self.adc_bits_y, self.adc_step_y, self.adc_levels_y = res_y
 
         if self.adc_bits_x > 0 and self.adc_bits_y > 0:
             self.adc_bits = max(self.adc_bits_x, self.adc_bits_y)
@@ -691,7 +616,7 @@ class StickAnalyzer:
             issues.append(f"Повышенный джиттер ({self.peak_jitter_pct:.2f}%)")
 
         # Finalize any in-flight ADC calculations
-        if self._adc_raw_buffer_x or self._adc_raw_buffer_y or self._adc_curr_burst_x > 0 or self._adc_curr_burst_y > 0:
+        if self._adc_raw_buffer_x or self._adc_raw_buffer_y:
             self._analyze_adc_buffers(flush_in_flight=True)
 
         return {
