@@ -28,6 +28,7 @@ class ReportWidget(QWidget):
         header = QHBoxLayout()
         lbl = QLabel("<b>Паспорт технического состояния и диагностический отчёт</b>")
         lbl.setStyleSheet("color: #38BDF8; font-size: 13px;")
+        lbl.setWordWrap(True)
         header.addWidget(lbl)
 
         btn_refresh = QPushButton("Обновить данные")

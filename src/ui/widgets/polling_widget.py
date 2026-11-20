@@ -28,7 +28,7 @@ class PollingWidget(QWidget):
         header.addWidget(lbl)
 
         btn_reset = QPushButton("Сбросить статистику")
-        btn_reset.setMinimumWidth(180)
+        btn_reset.setMinimumWidth(150)
         btn_reset.clicked.connect(self.reset_data)
         header.addWidget(btn_reset, alignment=Qt.AlignRight)
         layout.addLayout(header)
@@ -60,6 +60,7 @@ class PollingWidget(QWidget):
 
         self.lbl_note = QLabel("ℹ️ <b>Стабильность шины:</b> Вращайте стики по кругу для замера частоты. Для проводных геймпадов отсечение одинаковых пакетов драйвером Linux является штатным (не потеря кадров). Осциллограф отображает выровненный интервал шины и реальный аппаратный джиттер.")
         self.lbl_note.setStyleSheet("font-size: 11px; color: #94A3B8;")
+        self.lbl_note.setWordWrap(True)
         layout.addWidget(self.lbl_note)
 
         self.timer = QTimer(self)

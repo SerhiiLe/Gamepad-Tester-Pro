@@ -81,19 +81,19 @@ class MainWindow(QMainWindow):
 
         top_bar.addWidget(QLabel("<b>Контроллер:</b>"))
         self.combo_devices = QComboBox()
-        self.combo_devices.setMinimumWidth(380)
+        self.combo_devices.setMinimumWidth(280)
         self.combo_devices.currentIndexChanged.connect(self._on_device_selected)
         top_bar.addWidget(self.combo_devices)
 
         btn_rescan = QPushButton("↻ Поиск устройств")
-        btn_rescan.setMinimumWidth(160)
+        btn_rescan.setMinimumWidth(140)
         btn_rescan.clicked.connect(self.rescan_devices)
         top_bar.addWidget(btn_rescan)
 
         top_bar.addSpacing(16)
         top_bar.addWidget(QLabel("<b>Раскладка:</b>"))
         self.combo_profiles = QComboBox()
-        self.combo_profiles.setMinimumWidth(240)
+        self.combo_profiles.setMinimumWidth(180)
         for pkey, pval in PROFILES.items():
             self.combo_profiles.addItem(pval["name"], pkey)
         self.combo_profiles.currentIndexChanged.connect(self._on_profile_changed)

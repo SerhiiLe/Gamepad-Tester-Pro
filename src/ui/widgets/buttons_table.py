@@ -28,10 +28,11 @@ class ButtonsTableWidget(QWidget):
         header = QHBoxLayout()
         lbl = QLabel("<b>Тестирование кнопок, крестовины (D-Pad) и детектор дребезга контактов (&lt; 7 мс)</b>")
         lbl.setStyleSheet("color: #38BDF8; font-size: 13px;")
+        lbl.setWordWrap(True)
         header.addWidget(lbl)
 
         btn_clear = QPushButton("Сбросить счётчики")
-        btn_clear.setMinimumWidth(180)
+        btn_clear.setMinimumWidth(150)
         btn_clear.clicked.connect(self.clear_data)
         header.addWidget(btn_clear, alignment=Qt.AlignRight)
         layout.addLayout(header)
