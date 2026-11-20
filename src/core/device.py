@@ -22,12 +22,14 @@ class GamepadDevice:
     """Represents a connected physical gamepad with event and hidraw interfaces."""
 
     def __init__(self, name: str, event_path: Optional[str] = None, hidraw_path: Optional[str] = None,
-                 key_bits: Optional[Set[int]] = None, abs_bits: Optional[Set[int]] = None):
+                 key_bits: Optional[Set[int]] = None, abs_bits: Optional[Set[int]] = None,
+                 ev_bits: Optional[Set[int]] = None):
         self.name = name
         self.event_path = event_path
         self.hidraw_path = hidraw_path
         self.key_bits = key_bits or set()
         self.abs_bits = abs_bits or set()
+        self.ev_bits = ev_bits or set()
 
         # Vendor and Product IDs
         self.bus, self.vendor_id, self.product_id, self.version = self._read_device_id()
@@ -46,10 +48,76 @@ class GamepadDevice:
         self._ff_fd: Optional[int] = None
         self.active_effect_id: int = -1
         self._ff_timer: Optional[threading.Thread] = None
+        self.has_ff: bool = (EV_FF in self.ev_bits) or self._check_ff_support()
+
+        # Sibling devices (Touchpad & Motion Sensors)
+        self.has_touchpad: bool = False
+        self.has_motion: bool = False
+        self._probe_siblings()
 
         # Sysfs paths for LEDs and Battery
         self.sysfs_led_path = self._find_sysfs_led()
         self.sysfs_battery_path = self._find_sysfs_battery()
+
+    def _check_ff_support(self) -> bool:
+        """Checks if event device supports Force Feedback (EV_FF)."""
+        if not self.event_path:
+            return False
+        try:
+            fd = os.open(self.event_path, os.O_RDONLY | os.O_NONBLOCK)
+            buf = bytearray(4)
+            fcntl.ioctl(fd, 0x80044520, buf)  # EVIOCGBIT_EV
+            os.close(fd)
+            bits = set()
+            for byte_idx, byte_val in enumerate(buf):
+                for bit in range(8):
+                    if byte_val & (1 << bit):
+                        bits.add(byte_idx * 8 + bit)
+            return EV_FF in bits
+        except Exception:
+            return False
+
+    def _probe_siblings(self):
+        """Scans /proc/bus/input/devices to detect if companion touchpad or motion sensors exist."""
+        if not self.event_path:
+            return
+        try:
+            with open('/proc/bus/input/devices', 'r') as f:
+                content = f.read()
+        except Exception:
+            return
+
+        ev_base = os.path.basename(self.event_path)
+        entries = content.strip().split('\n\n')
+        target_phys = None
+        for entry in entries:
+            lines = entry.splitlines()
+            h_line = next((l for l in lines if l.startswith('H: Handlers=')), '')
+            if 'Handlers=' in h_line and ev_base in h_line.split('Handlers=')[1].split():
+                for l in lines:
+                    if l.startswith('P: Phys='):
+                        target_phys = l.split('=', 1)[1].strip()
+                    elif l.startswith('B: FF='):
+                        ff_val = l.split('=', 1)[1].strip()
+                        if ff_val and ff_val != '0':
+                            self.has_ff = True
+                break
+
+        if target_phys:
+            phys_prefix = target_phys.split('/input')[0] if '/input' in target_phys else target_phys
+            for entry in entries:
+                lines = entry.splitlines()
+                p_line = next((l for l in lines if l.startswith('P: Phys=')), '')
+                n_line = next((l for l in lines if l.startswith('N: Name=')), '')
+                entry_phys = p_line.split('=', 1)[1].strip() if p_line else ''
+                entry_name = n_line.split('=', 1)[1].strip().strip('\"') if n_line else ''
+
+                if entry_phys and (entry_phys == target_phys or (phys_prefix and entry_phys.startswith(phys_prefix))):
+                    lower = entry_name.lower()
+                    if 'touchpad' in lower:
+                        self.has_touchpad = True
+                    if 'motion' in lower or 'sensor' in lower or 'gyro' in lower or 'accelerometer' in lower:
+                        self.has_motion = True
 
     def _read_device_id(self) -> Tuple[int, int, int, int]:
         """Reads Bus, Vendor ID, Product ID, and Version from event node via ioctl."""

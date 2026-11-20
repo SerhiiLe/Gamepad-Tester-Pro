@@ -8,6 +8,7 @@ import os
 import time
 import html
 from typing import Dict, Any, Optional
+from ..analysis.authenticity import analyze_authenticity
 
 try:
     from reportlab.lib.pagesizes import A4
@@ -191,13 +192,16 @@ def generate_pdf_report(output_filepath: str,
         elements.append(t_dev)
         elements.append(Spacer(1, 10))
 
+        # Authenticity & Hardware Profile Analysis
+        auth = analyze_authenticity(device_info, left_stick, right_stick, triggers_data)
+
         # Overall Status Verdict
         has_chatter = buttons_data.get("status") != "PASS"
         has_snapback = (left_stick.get("snapback_flicks", 0) > 0 or right_stick.get("snapback_flicks", 0) > 0 or
                         left_stick.get("snapback_count", 0) > 0 or right_stick.get("snapback_count", 0) > 0)
         has_circ_err = (left_stick.get("circularity_error_pct", 0) > 8.0 or right_stick.get("circularity_error_pct", 0) > 8.0)
 
-        if not has_chatter and not has_snapback and not has_circ_err:
+        if not has_chatter and not has_snapback and not has_circ_err and not auth.is_replica:
             verdict_text = "ИТОГОВЫЙ СТАТУС: ВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО (НОРМА)"
             bg_color = colors.HexColor('#DCFCE7')
             border_color = colors.HexColor('#16A34A')
@@ -231,19 +235,11 @@ def generate_pdf_report(output_filepath: str,
         rs_gate = right_stick.get('gate_shape', '')
         rs_bezel_tag = " (без безеля)" if ("без безеля" in rs_gate.lower() or "квадрат" in rs_gate.lower()) else ""
 
-        # Triggers summary line with ADC info
+        # Triggers summary line
         trig_strs = []
         for name, t in triggers_data.items():
-            t_adc = t.get('adc_bits', 0)
-            adc_p = f" (~{t_adc:.0f} бит)" if t_adc > 0 else ""
-            trig_strs.append(f"<b>{name}:</b> ход 0..{t.get('raw_max', 255)}{adc_p}")
+            trig_strs.append(f"<b>{name}:</b> ход 0..{t.get('raw_max', 255)} ({t.get('current_val_pct', 0):.1f}%)")
         trig_display = " | ".join(trig_strs) if trig_strs else "Не тестировались"
-
-        ls_adc_val = left_stick.get('adc_bits', 0)
-        ls_adc_tag = f" | АЦП: <b>~{ls_adc_val:.0f} бит</b>" if ls_adc_val > 0 else ""
-
-        rs_adc_val = right_stick.get('adc_bits', 0)
-        rs_adc_tag = f" | АЦП: <b>~{rs_adc_val:.0f} бит</b>" if rs_adc_val > 0 else ""
 
         # Detailed Test Results Table
         elements.append(Paragraph("Результаты измерений по узлам", h2_style))
@@ -262,7 +258,7 @@ def generate_pdf_report(output_filepath: str,
             [
                 Paragraph("Левый стик", bold_style),
                 Paragraph(
-                    f"Ошибка круга: <b>{left_stick.get('circularity_error_pct', 0):.1f}%</b>{ls_bezel_tag} | Шум: <b>{left_stick.get('peak_jitter_pct', 0):.2f}%</b>{ls_adc_tag}<br/>"
+                    f"Ошибка круга: <b>{left_stick.get('circularity_error_pct', 0):.1f}%</b>{ls_bezel_tag} | Шум: <b>{left_stick.get('peak_jitter_pct', 0):.2f}%</b><br/>"
                     f"Snapback X: <b>{left_stick.get('snapback_rate_x_pct', 0):.0f}%</b> ({left_stick.get('snapback_flicks_x', 0)}/{left_stick.get('total_flicks_x', 0)}, вылет {left_stick.get('max_snapback_x_pct', 0):.1f}%) | "
                     f"Snapback Y: <b>{left_stick.get('snapback_rate_y_pct', 0):.0f}%</b> ({left_stick.get('snapback_flicks_y', 0)}/{left_stick.get('total_flicks_y', 0)}, вылет {left_stick.get('max_snapback_y_pct', 0):.1f}%)",
                     body_style
@@ -272,7 +268,7 @@ def generate_pdf_report(output_filepath: str,
             [
                 Paragraph("Правый стик", bold_style),
                 Paragraph(
-                    f"Ошибка круга: <b>{right_stick.get('circularity_error_pct', 0):.1f}%</b>{rs_bezel_tag} | Шум: <b>{right_stick.get('peak_jitter_pct', 0):.2f}%</b>{rs_adc_tag}<br/>"
+                    f"Ошибка круга: <b>{right_stick.get('circularity_error_pct', 0):.1f}%</b>{rs_bezel_tag} | Шум: <b>{right_stick.get('peak_jitter_pct', 0):.2f}%</b><br/>"
                     f"Snapback X: <b>{right_stick.get('snapback_rate_x_pct', 0):.0f}%</b> ({right_stick.get('snapback_flicks_x', 0)}/{right_stick.get('total_flicks_x', 0)}, вылет {right_stick.get('max_snapback_x_pct', 0):.1f}%) | "
                     f"Snapback Y: <b>{right_stick.get('snapback_rate_y_pct', 0):.0f}%</b> ({right_stick.get('snapback_flicks_y', 0)}/{right_stick.get('total_flicks_y', 0)}, вылет {right_stick.get('max_snapback_y_pct', 0):.1f}%)",
                     body_style
@@ -295,8 +291,44 @@ def generate_pdf_report(output_filepath: str,
         ]))
         elements.append(t_res)
 
-        elements.append(Spacer(1, 20))
-        elements.append(Paragraph("Отчёт сформирован программным комплексом Gamepad Tester Pro. Предназначен для контроля качества, ремонта и верификации датчиков Холла и переключателей.", subtitle_style))
+        # Hardware Architecture & Authenticity Section
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("Предполагаемые характеристики и аппаратная подлинность", h2_style))
+
+        badge_bg = colors.HexColor('#FEF3C7') if auth.is_replica else colors.HexColor('#DCFCE7')
+        badge_text_color = colors.HexColor('#92400E') if auth.is_replica else colors.HexColor('#166534')
+
+        verdict_badge_style = ParagraphStyle(
+            'VerdictBadge',
+            fontName=_REG_FONT_BOLD,
+            fontSize=9,
+            leading=12,
+            textColor=badge_text_color
+        )
+
+        arch_table_data = [
+            [Paragraph("Параметр платформы", bold_style), Paragraph("Характеристика и результат верификации", bold_style)],
+            [Paragraph("Предполагаемый АЦП стиков", body_style), Paragraph(f"<b>{auth.stick_adc_str}</b>", body_style)],
+            [Paragraph("Предполагаемый АЦП курков", body_style), Paragraph(f"<b>{auth.trigger_adc_str}</b>", body_style)],
+            [Paragraph("Платформенный профиль", body_style), Paragraph(f"<b>{auth.archetype}</b>", body_style)],
+            [Paragraph("Ожидается по спецификации", body_style), Paragraph(auth.expected_spec, body_style)],
+            [Paragraph("Фактически обнаружено", body_style), Paragraph(auth.actual_spec, body_style)],
+            [Paragraph("Заключение о подлинности", bold_style), Paragraph(auth.verdict, verdict_badge_style)],
+            [Paragraph("Экспертный вывод", body_style), Paragraph(auth.comment, body_style)],
+        ]
+
+        t_arch = Table(arch_table_data, colWidths=[150, 370])
+        t_arch.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('BACKGROUND', (1, 6), (1, 6), badge_bg),
+        ]))
+        elements.append(t_arch)
+
+        elements.append(Spacer(1, 15))
+        elements.append(Paragraph("Отчёт сформирован программным комплексом Gamepad Tester Pro. Предназначен для контроля качества, ремонта и верификации датчиков Холла, потенциометров и аппаратных платформ.", subtitle_style))
 
         doc.build(elements)
         return True

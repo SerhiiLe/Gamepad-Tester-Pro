@@ -93,7 +93,7 @@ def discover_gamepads() -> List[GamepadDevice]:
             if is_gamepad_btn or is_joystick_btn or has_sticks:
                 h_path = hidraw_map.get(name)
                 dev = GamepadDevice(name, event_path=ev, hidraw_path=h_path,
-                                    key_bits=key_bits, abs_bits=abs_bits)
+                                    key_bits=key_bits, abs_bits=abs_bits, ev_bits=ev_bits)
                 devices.append(dev)
                 seen_events.add(ev)
         except Exception:

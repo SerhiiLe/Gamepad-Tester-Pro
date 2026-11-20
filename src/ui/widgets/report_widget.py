@@ -61,7 +61,12 @@ class ReportWidget(QWidget):
             "vid": dev.vendor_id if dev else 0,
             "pid": dev.product_id if dev else 0,
             "event_path": dev.event_path if dev else "N/A",
-            "layout": self.mw.current_profile_key
+            "layout": self.mw.current_profile_key,
+            "has_ff": dev.has_ff if dev else False,
+            "has_touchpad": dev.has_touchpad if dev else False,
+            "has_motion": dev.has_motion if dev else False,
+            "has_leds": bool(dev.sysfs_led_path) if dev else False,
+            "has_battery": bool(dev.sysfs_battery_path) if dev else False,
         }
         polling_data = self.mw.polling_analyzer.get_summary()
         buttons_data = self.mw.buttons_analyzer.get_summary()

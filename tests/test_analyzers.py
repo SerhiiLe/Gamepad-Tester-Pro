@@ -147,8 +147,10 @@ class TestGamepadAnalyzers(unittest.TestCase):
         # Text report
         text = generate_text_report(dev_info, pdata, bdata, ls, rs, trigs)
         self.assertIn("ПАСПОРТ ТЕХНИЧЕСКОГО СОСТОЯНИЯ", text)
-        self.assertIn("Разрядность АЦП:        ~10 бит", text)
-        self.assertIn("АЦП: ~8 бит", text)
+        self.assertIn("ПРЕДПОЛАГАЕМЫЕ ХАРАКТЕРИСТИКИ И ПОДЛИННОСТЬ", text)
+        self.assertIn("Разрядность АЦП стиков:     ~10 бит", text)
+        self.assertIn("Разрядность АЦП триггеров:  ~8 бит", text)
+        self.assertIn("Sony DualSense", text)
 
         # PDF report
         test_pdf_path = "/tmp/test_gamepad_report.pdf"
@@ -157,6 +159,34 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertTrue(os.path.exists(test_pdf_path))
         if os.path.exists(test_pdf_path):
             os.remove(test_pdf_path)
+
+    def test_hardware_profile_authenticity(self):
+        from src.analysis.authenticity import analyze_authenticity
+
+        ls = {"adc_bits": 12.0}
+        rs = {"adc_bits": 12.0}
+        trigs = {"L2": {"adc_bits": 8.0}, "R2": {"adc_bits": 8.0}}
+
+        # 1. Genuine Xbox 360
+        dev_x360 = {"name": "Microsoft X-Box 360 pad", "vid": 0x045E, "pid": 0x028E, "has_ff": True}
+        res_x360 = analyze_authenticity(dev_x360, ls, rs, trigs)
+        self.assertIn("12 бит", res_x360.stick_adc_str)
+        self.assertIn("8 бит", res_x360.trigger_adc_str)
+        self.assertIn("Оригинальная аппаратная архитектура", res_x360.verdict)
+        self.assertFalse(res_x360.is_replica)
+
+        # 2. Fake / Replica DualShock 4 (claims DS4 but missing Touchpad & Motion sensors)
+        dev_fake_ds4 = {"name": "Wireless Controller", "vid": 0x054C, "pid": 0x05C4, "layout": "ds4", "has_touchpad": False, "has_motion": False}
+        res_fake_ds4 = analyze_authenticity(dev_fake_ds4, ls, rs, trigs)
+        self.assertIn("Имитация / Реплика", res_fake_ds4.verdict)
+        self.assertIn("ОТСУТСТВУЕТ", res_fake_ds4.actual_spec)
+        self.assertTrue(res_fake_ds4.is_replica)
+
+        # 3. Genuine DualShock 4 (Touchpad and Motion sensors both present)
+        dev_real_ds4 = {"name": "Wireless Controller", "vid": 0x054C, "pid": 0x05C4, "layout": "ds4", "has_touchpad": True, "has_motion": True, "has_ff": True}
+        res_real_ds4 = analyze_authenticity(dev_real_ds4, ls, rs, trigs)
+        self.assertIn("Оригинал / Полная", res_real_ds4.verdict)
+        self.assertFalse(res_real_ds4.is_replica)
 
     def test_adc_resolution_estimation(self):
         # 1. Stick 10-bit test (increments of 64 on span 65535)

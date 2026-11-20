@@ -5,6 +5,7 @@ Generates a structured plain-text report of gamepad health and test findings.
 
 import time
 from typing import Dict, Any
+from ..analysis.authenticity import analyze_authenticity
 
 
 def generate_text_report(device_info: Dict[str, Any],
@@ -16,6 +17,9 @@ def generate_text_report(device_info: Dict[str, Any],
     """Generates a complete diagnostic report in human-readable plain text format."""
     now_str = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    # Authenticity & hardware profile analysis
+    auth = analyze_authenticity(device_info, left_stick, right_stick, triggers_data)
+
     # Global status calculation
     issues = []
     if buttons_data.get("status") != "PASS":
@@ -26,6 +30,8 @@ def generate_text_report(device_info: Dict[str, Any],
         issues.extend([f"Правый стик: {iss}" for iss in right_stick.get("issues", [])])
     if polling_data.get("status") != "PASS":
         issues.append("Нестабильная частота опроса шины")
+    if auth.is_replica:
+        issues.append(f"Неполная аппаратная реализация платформы ({auth.verdict})")
 
     global_verdict = "✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ (НОРМА)" if not issues else "⚠️ ОБНАРУЖЕНЫ ДЕФЕКТЫ / ОТКЛОНЕНИЯ"
 
@@ -66,22 +72,11 @@ def generate_text_report(device_info: Dict[str, Any],
     rs_gate = right_stick.get('gate_shape', '')
     rs_bezel_tag = " (без безеля)" if ("без безеля" in rs_gate.lower() or "квадрат" in rs_gate.lower()) else ""
 
-    ls_adc_bits = left_stick.get('adc_bits', 0)
-    ls_adc_step = left_stick.get('adc_step', 0)
-    ls_adc_levels = left_stick.get('adc_levels', 0)
-    ls_adc_str = f"~{ls_adc_bits:.0f} бит (шаг: {ls_adc_step}, уровней: {ls_adc_levels})" if ls_adc_bits > 0 else "не замерена (вращайте медленно в 'Свободном' режиме)"
-
-    rs_adc_bits = right_stick.get('adc_bits', 0)
-    rs_adc_step = right_stick.get('adc_step', 0)
-    rs_adc_levels = right_stick.get('adc_levels', 0)
-    rs_adc_str = f"~{rs_adc_bits:.0f} бит (шаг: {rs_adc_step}, уровней: {rs_adc_levels})" if rs_adc_bits > 0 else "не замерена (вращайте медленно в 'Свободном' режиме)"
-
     lines.extend([
         "",
         "3. ЛЕВЫЙ АНАЛОГОВЫЙ СТИК",
         f"  - Ошибка геометрии:       {left_stick.get('circularity_error_pct', 0):.2f}%{ls_bezel_tag} (допуск < 8.0%)",
         f"  - Максимальный вылет:     {left_stick.get('max_reach', 0):.3f}",
-        f"  - Разрядность АЦП:        {ls_adc_str}",
         f"  - Джиттер / Шум:          удержание: {left_stick.get('peak_jitter_pct', 0):.2f}%, в движении: {left_stick.get('motion_jitter_pct', 0):.2f}%",
         f"  - Snapback по оси X:      вероятность: {left_stick.get('snapback_rate_x_pct', 0):.0f}% ({left_stick.get('snapback_flicks_x', 0)} из {left_stick.get('total_flicks_x', 0)}), макс. вылет: {left_stick.get('max_snapback_x_pct', 0):.1f}% (допуск < 5.0%)",
         f"  - Snapback по оси Y:      вероятность: {left_stick.get('snapback_rate_y_pct', 0):.0f}% ({left_stick.get('snapback_flicks_y', 0)} из {left_stick.get('total_flicks_y', 0)}), макс. вылет: {left_stick.get('max_snapback_y_pct', 0):.1f}% (допуск < 5.0%)",
@@ -89,7 +84,6 @@ def generate_text_report(device_info: Dict[str, Any],
         "4. ПРАВЫЙ АНАЛОГОВЫЙ СТИК",
         f"  - Ошибка геометрии:       {right_stick.get('circularity_error_pct', 0):.2f}%{rs_bezel_tag} (допуск < 8.0%)",
         f"  - Максимальный вылет:     {right_stick.get('max_reach', 0):.3f}",
-        f"  - Разрядность АЦП:        {rs_adc_str}",
         f"  - Джиттер / Шум:          удержание: {right_stick.get('peak_jitter_pct', 0):.2f}%, в движении: {right_stick.get('motion_jitter_pct', 0):.2f}%",
         f"  - Snapback по оси X:      вероятность: {right_stick.get('snapback_rate_x_pct', 0):.0f}% ({right_stick.get('snapback_flicks_x', 0)} из {right_stick.get('total_flicks_x', 0)}), макс. вылет: {right_stick.get('max_snapback_x_pct', 0):.1f}% (допуск < 5.0%)",
         f"  - Snapback по оси Y:      вероятность: {right_stick.get('snapback_rate_y_pct', 0):.0f}% ({right_stick.get('snapback_flicks_y', 0)} из {right_stick.get('total_flicks_y', 0)}), макс. вылет: {right_stick.get('max_snapback_y_pct', 0):.1f}% (допуск < 5.0%)",
@@ -98,14 +92,24 @@ def generate_text_report(device_info: Dict[str, Any],
     ])
 
     for name, tdata in triggers_data.items():
-        t_bits = tdata.get('adc_bits', 0)
-        adc_suffix = f", АЦП: ~{t_bits:.0f} бит (шаг: {tdata.get('min_step', 0)})" if t_bits > 0 else ""
-        lines.append(f"  - {name}: ход 0..{tdata.get('raw_max', 255)} (текущее: {tdata.get('current_val_pct', 0):.1f}%){adc_suffix}")
+        lines.append(f"  - {name}: ход 0..{tdata.get('raw_max', 255)} (текущее: {tdata.get('current_val_pct', 0):.1f}%)")
+
+    lines.extend([
+        "",
+        "6. ПРЕДПОЛАГАЕМЫЕ ХАРАКТЕРИСТИКИ И ПОДЛИННОСТЬ УСТРОЙСТВА",
+        f"  - Разрядность АЦП стиков:     {auth.stick_adc_str}",
+        f"  - Разрядность АЦП триггеров:  {auth.trigger_adc_str}",
+        f"  - Платформенный профиль:      {auth.archetype}",
+        f"  - Ожидается по спецификации:  {auth.expected_spec}",
+        f"  - Фактически обнаружено:      {auth.actual_spec}",
+        f"  - Заключение о подлинности:   {auth.verdict}",
+        f"  - Экспертный вывод:           {auth.comment}",
+    ])
 
     if issues:
         lines.extend([
             "",
-            "6. ОБНАРУЖЕННЫЕ ПРОБЛЕМЫ И РЕКОМЕНДАЦИИ:",
+            "7. ОБНАРУЖЕННЫЕ ПРОБЛЕМЫ И РЕКОМЕНДАЦИИ:",
             *[f"  * {iss}" for iss in issues]
         ])
 
