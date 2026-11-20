@@ -49,11 +49,12 @@ class PollingWidget(QWidget):
         self.plot.setBackground('#111827')
         self.plot.showGrid(x=True, y=True, alpha=0.3)
         self.plot.setLabel('left', 'Интервал Δt между пакетами (мс)')
-        self.plot.setLabel('bottom', 'Индекс пакета опроса')
-        self.plot.setYRange(0, 16)
+        self.plot.setLabel('bottom', 'Индекс пакета опроса (история шины)')
+        self.plot.setXRange(0, 300, padding=0.01)
+        self.plot.setYRange(0, 8)
 
         # Reference target line (e.g. 1.0 ms for 1000 Hz, 4.0 ms for 250 Hz, 8.0 ms for 125 Hz)
-        self.target_line = self.plot.plot([-100, 1000], [1.0, 1.0], pen=pg.mkPen('#10B981', width=1, style=Qt.DashLine))
+        self.target_line = self.plot.plot([0, 300], [4.0, 4.0], pen=pg.mkPen('#10B981', width=1.5, style=Qt.DashLine))
 
         self.curve = self.plot.plot([], [], pen=pg.mkPen('#0284C7', width=1.5))
         layout.addWidget(self.plot)
@@ -70,6 +71,7 @@ class PollingWidget(QWidget):
     def reset_data(self):
         self.analyzer.reset()
         self.curve.setData([], [])
+        self.plot.setXRange(0, 300, padding=0.01)
 
     def update_view(self):
         hz = self.analyzer.current_hz if self.analyzer.current_hz > 0 else float(self.analyzer.nominal_hz)
@@ -88,7 +90,7 @@ class PollingWidget(QWidget):
             color = "#F59E0B"  # 125 Hz (Standard USB HID)
 
         self.lbl_hz.setStyleSheet(f"font-size: 32px; color: {color}; font-weight: bold;")
-        self.target_line.setData([-100, 1000], [target_ms, target_ms])
+        self.target_line.setData([0, 300], [target_ms, target_ms])
 
         conn_type = "Беспроводной" if self.analyzer.is_wireless else "Проводной USB"
         drops_tag = f"Потерь: <b>{self.analyzer.dropped_packets_count}</b>" if self.analyzer.is_wireless else "Потери исключены"
@@ -100,10 +102,22 @@ class PollingWidget(QWidget):
             f"Отсечено дублей: {self.analyzer.dedup_packets_count} | {drops_tag}"
         )
 
-        # Plot last 150 normalized deltas (unfolded from deduplication multiples)
+        # Plot last 300 normalized deltas (unfolded from deduplication multiples)
         plot_source = self.analyzer._norm_deltas_ms if self.analyzer._norm_deltas_ms else self.analyzer._deltas_ms
         if plot_source:
-            deltas = list(plot_source)[-150:]
+            deltas = list(plot_source)[-300:]
             self.curve.setData(list(range(len(deltas))), deltas)
+
+            # Proportional vertical range around nominal target
+            if target_ms <= 1.5:
+                y_max = 3.0   # 1000 Hz (1 ms centered)
+            elif target_ms <= 3.0:
+                y_max = 5.0   # 500 Hz (2 ms centered)
+            elif target_ms <= 6.0:
+                y_max = 8.0   # 250 Hz / 200 Hz (4-5 ms centered)
+            else:
+                y_max = 16.0  # 125 Hz (8 ms centered)
+
             max_d = max(deltas)
-            self.plot.setYRange(0, max(target_ms * 2.5, max_d * 1.3))
+            self.plot.setYRange(0, max(y_max, max_d * 1.25))
+            self.plot.setXRange(0, 300, padding=0.01)
