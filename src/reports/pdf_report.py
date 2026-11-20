@@ -112,91 +112,72 @@ def generate_pdf_report(output_filepath: str,
     _setup_cyrillic_font()
 
     try:
-        # Compact margins to guarantee 1 page A4 layout (total width = 595.27, height = 841.89)
+        # Standard comfortable margins: 36 pt (12.7 mm) left/right, 34 pt top/bottom
+        margin_x = 36
+        margin_y = 34
         doc = SimpleDocTemplate(
             output_filepath,
             pagesize=A4,
-            leftMargin=28,
-            rightMargin=28,
-            topMargin=22,
-            bottomMargin=22
+            leftMargin=margin_x,
+            rightMargin=margin_x,
+            topMargin=margin_y,
+            bottomMargin=margin_y
         )
+        avail_w = 595.27 - 2 * margin_x  # ~523.27 pt
 
         styles = getSampleStyleSheet()
 
-        # 1. Header Block Styles (Enlarged)
+        # 1. Header Styles
         title_style = ParagraphStyle(
             'TitleStyle',
             fontName=_REG_FONT_BOLD,
-            fontSize=15,
-            leading=18,
+            fontSize=16,
+            leading=20,
             textColor=colors.HexColor('#1E293B'),
             spaceAfter=2
         )
         subtitle_style = ParagraphStyle(
             'SubTitleStyle',
             fontName=_REG_FONT_NAME,
-            fontSize=8.5,
-            leading=11,
+            fontSize=9.0,
+            leading=12,
             textColor=colors.HexColor('#64748B'),
             spaceAfter=4
         )
 
-        # 2. Main Block (Passport & Test Results) Styles (Enlarged for readability)
-        h2_main_style = ParagraphStyle(
-            'H2MainStyle',
+        # 2. Section Headings (H2)
+        h2_style = ParagraphStyle(
+            'H2Style',
             fontName=_REG_FONT_BOLD,
-            fontSize=10.5,
-            leading=13,
-            textColor=colors.HexColor('#0F172A'),
-            spaceBefore=5,
-            spaceAfter=3
-        )
-        body_main_style = ParagraphStyle(
-            'BodyMain',
-            fontName=_REG_FONT_NAME,
-            fontSize=8.0,
-            leading=10.5,
-            textColor=colors.HexColor('#334155')
-        )
-        bold_main_style = ParagraphStyle(
-            'BoldMain',
-            fontName=_REG_FONT_BOLD,
-            fontSize=8.5,
-            leading=11,
-            textColor=colors.HexColor('#0F172A')
-        )
-
-        # 3. Architecture & Authenticity Block Styles (Kept compact as requested)
-        h2_arch_style = ParagraphStyle(
-            'H2ArchStyle',
-            fontName=_REG_FONT_BOLD,
-            fontSize=9.5,
-            leading=12,
+            fontSize=11.0,
+            leading=14,
             textColor=colors.HexColor('#0F172A'),
             spaceBefore=4,
             spaceAfter=2
         )
-        body_arch_style = ParagraphStyle(
-            'BodyArch',
+
+        # 3. Base Table Typography (Restored to 9.0 pt)
+        body_style = ParagraphStyle(
+            'Body',
             fontName=_REG_FONT_NAME,
-            fontSize=7.5,
-            leading=9.5,
+            fontSize=9.0,
+            leading=11.5,
             textColor=colors.HexColor('#334155')
         )
-        bold_arch_style = ParagraphStyle(
-            'BoldArch',
+        bold_style = ParagraphStyle(
+            'Bold',
             fontName=_REG_FONT_BOLD,
-            fontSize=7.5,
-            leading=9.5,
+            fontSize=9.0,
+            leading=11.5,
             textColor=colors.HexColor('#0F172A')
         )
 
+        # 4. Footer Note (Slightly increased to 7.5 pt, visually distinct and smaller than 9.0 pt)
         footer_style = ParagraphStyle(
             'Footer',
             fontName=_REG_FONT_NAME,
-            fontSize=6.5,
-            leading=8.5,
+            fontSize=7.5,
+            leading=9.5,
             textColor=colors.HexColor('#64748B')
         )
 
@@ -205,21 +186,21 @@ def generate_pdf_report(output_filepath: str,
         # Header
         elements.append(Paragraph("🎮 Паспорт технического состояния геймпада", title_style))
         elements.append(Paragraph(f"Дата проверки: {time.strftime('%Y-%m-%d %H:%M:%S')} | Комплекс: Gamepad Tester Pro 2.0", subtitle_style))
-        elements.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor('#0284C7'), spaceAfter=5))
+        elements.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor('#0284C7'), spaceAfter=4))
 
-        # Device Info Table (width = 538)
+        # Device Info Table
         dev_name = html.escape(str(device_info.get('name', 'Unknown')))
         dev_path = html.escape(str(device_info.get('event_path', 'N/A')))
         dev_layout = html.escape(str(device_info.get('layout', 'Standard')))
 
         dev_table_data = [
-            [Paragraph("Параметр", bold_main_style), Paragraph("Значение", bold_main_style)],
-            [Paragraph("Модель устройства", body_main_style), Paragraph(dev_name, body_main_style)],
-            [Paragraph("Идентификатор (VID / PID)", body_main_style), Paragraph(f"0x{device_info.get('vid', 0):04X} : 0x{device_info.get('pid', 0):04X}", body_main_style)],
-            [Paragraph("Интерфейс подключения", body_main_style), Paragraph(dev_path, body_main_style)],
-            [Paragraph("Профиль раскладки", body_main_style), Paragraph(dev_layout, body_main_style)],
+            [Paragraph("Параметр", bold_style), Paragraph("Значение", bold_style)],
+            [Paragraph("Модель устройства", body_style), Paragraph(dev_name, body_style)],
+            [Paragraph("Идентификатор (VID / PID)", body_style), Paragraph(f"0x{device_info.get('vid', 0):04X} : 0x{device_info.get('pid', 0):04X}", body_style)],
+            [Paragraph("Интерфейс подключения", body_style), Paragraph(dev_path, body_style)],
+            [Paragraph("Профиль раскладки", body_style), Paragraph(dev_layout, body_style)],
         ]
-        t_dev = Table(dev_table_data, colWidths=[140, 398])
+        t_dev = Table(dev_table_data, colWidths=[140, avail_w - 140])
         t_dev.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
@@ -253,16 +234,16 @@ def generate_pdf_report(output_filepath: str,
         v_style = ParagraphStyle(
             'Verdict',
             fontName=_REG_FONT_BOLD,
-            fontSize=9.5,
+            fontSize=10.0,
             leading=13,
             textColor=text_color
         )
-        verdict_table = Table([[Paragraph(verdict_text, v_style)]], colWidths=[538])
+        verdict_table = Table([[Paragraph(verdict_text, v_style)]], colWidths=[avail_w])
         verdict_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), bg_color),
             ('BOX', (0, 0), (-1, -1), 1, border_color),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
         ]))
         elements.append(verdict_table)
         elements.append(Spacer(1, 4))
@@ -308,47 +289,47 @@ def generate_pdf_report(output_filepath: str,
             btn_verdict = "Без дребезга"
 
         # Detailed Test Results Table
-        elements.append(Paragraph("Результаты измерений по узлам", h2_main_style))
+        elements.append(Paragraph("Результаты измерений по узлам", h2_style))
         results_data = [
-            [Paragraph("Узел / Тест", bold_main_style), Paragraph("Измеренные параметры", bold_main_style), Paragraph("Вердикт", bold_main_style)],
+            [Paragraph("Узел / Тест", bold_style), Paragraph("Измеренные параметры", bold_style), Paragraph("Вердикт", bold_style)],
             [
-                Paragraph("Шина и опрос", bold_main_style),
-                Paragraph(poll_details, body_main_style),
-                Paragraph(poll_verdict, body_main_style)
+                Paragraph("Шина и опрос", bold_style),
+                Paragraph(poll_details, body_style),
+                Paragraph(poll_verdict, body_style)
             ],
             [
-                Paragraph("Кнопки (Дребезг)", bold_main_style),
-                Paragraph(btn_details, body_main_style),
-                Paragraph(btn_verdict, body_main_style)
+                Paragraph("Кнопки (Дребезг)", bold_style),
+                Paragraph(btn_details, body_style),
+                Paragraph(btn_verdict, body_style)
             ],
             [
-                Paragraph("Левый стик", bold_main_style),
+                Paragraph("Левый стик", bold_style),
                 Paragraph(
                     f"Ошибка круга: <b>{left_stick.get('circularity_error_pct', 0):.1f}%</b>{ls_bezel_tag} | Шум: <b>{left_stick.get('peak_jitter_pct', 0):.2f}%</b><br/>"
                     f"Snapback X: <b>{left_stick.get('snapback_rate_x_pct', 0):.0f}%</b> ({left_stick.get('snapback_flicks_x', 0)}/{left_stick.get('total_flicks_x', 0)}, вылет {left_stick.get('max_snapback_x_pct', 0):.1f}%) | "
                     f"Snapback Y: <b>{left_stick.get('snapback_rate_y_pct', 0):.0f}%</b> ({left_stick.get('snapback_flicks_y', 0)}/{left_stick.get('total_flicks_y', 0)}, вылет {left_stick.get('max_snapback_y_pct', 0):.1f}%)",
-                    body_main_style
+                    body_style
                 ),
-                Paragraph("Норма" if left_stick.get("status") == "PASS" else "<font color='#DC2626'><b>Отклонение</b></font>", body_main_style)
+                Paragraph("Норма" if left_stick.get("status") == "PASS" else "<font color='#DC2626'><b>Отклонение</b></font>", body_style)
             ],
             [
-                Paragraph("Правый стик", bold_main_style),
+                Paragraph("Правый стик", bold_style),
                 Paragraph(
                     f"Ошибка круга: <b>{right_stick.get('circularity_error_pct', 0):.1f}%</b>{rs_bezel_tag} | Шум: <b>{right_stick.get('peak_jitter_pct', 0):.2f}%</b><br/>"
                     f"Snapback X: <b>{right_stick.get('snapback_rate_x_pct', 0):.0f}%</b> ({right_stick.get('snapback_flicks_x', 0)}/{right_stick.get('total_flicks_x', 0)}, вылет {right_stick.get('max_snapback_x_pct', 0):.1f}%) | "
                     f"Snapback Y: <b>{right_stick.get('snapback_rate_y_pct', 0):.0f}%</b> ({right_stick.get('snapback_flicks_y', 0)}/{right_stick.get('total_flicks_y', 0)}, вылет {right_stick.get('max_snapback_y_pct', 0):.1f}%)",
-                    body_main_style
+                    body_style
                 ),
-                Paragraph("Норма" if right_stick.get("status") == "PASS" else "<font color='#DC2626'><b>Отклонение</b></font>", body_main_style)
+                Paragraph("Норма" if right_stick.get("status") == "PASS" else "<font color='#DC2626'><b>Отклонение</b></font>", body_style)
             ],
             [
-                Paragraph("Триггеры (Курки)", bold_main_style),
-                Paragraph(trig_display, body_main_style),
-                Paragraph("Норма", body_main_style)
+                Paragraph("Триггеры (Курки)", bold_style),
+                Paragraph(trig_display, body_style),
+                Paragraph("Норма", body_style)
             ],
         ]
 
-        t_res = Table(results_data, colWidths=[110, 348, 80])
+        t_res = Table(results_data, colWidths=[115, avail_w - 115 - 85, 85])
         t_res.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F8FAFC')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
@@ -357,9 +338,9 @@ def generate_pdf_report(output_filepath: str,
         ]))
         elements.append(t_res)
 
-        # Hardware Architecture & Authenticity Section (Maintained compact)
+        # Hardware Architecture & Authenticity Section
         elements.append(Spacer(1, 4))
-        elements.append(Paragraph("Предполагаемые характеристики и аппаратная подлинность", h2_arch_style))
+        elements.append(Paragraph("Предполагаемые характеристики и аппаратная подлинность", h2_style))
 
         badge_bg = colors.HexColor('#FEF3C7') if auth.is_replica else colors.HexColor('#DCFCE7')
         badge_text_color = colors.HexColor('#92400E') if auth.is_replica else colors.HexColor('#166534')
@@ -367,28 +348,28 @@ def generate_pdf_report(output_filepath: str,
         verdict_badge_style = ParagraphStyle(
             'VerdictBadge',
             fontName=_REG_FONT_BOLD,
-            fontSize=7.5,
-            leading=9.5,
+            fontSize=9.0,
+            leading=11.5,
             textColor=badge_text_color
         )
 
         arch_table_data = [
-            [Paragraph("Параметр платформы", bold_arch_style), Paragraph("Характеристика и результат верификации", bold_arch_style)],
-            [Paragraph("Предполагаемый АЦП стиков", body_arch_style), Paragraph(f"<b>{auth.stick_adc_str}</b>", body_arch_style)],
-            [Paragraph("Предполагаемый АЦП курков", body_arch_style), Paragraph(f"<b>{auth.trigger_adc_str}</b>", body_arch_style)],
-            [Paragraph("Платформенный профиль", body_arch_style), Paragraph(f"<b>{auth.archetype}</b>", body_arch_style)],
-            [Paragraph("Ожидается по спецификации", body_arch_style), Paragraph(auth.expected_spec, body_arch_style)],
-            [Paragraph("Фактически обнаружено", body_arch_style), Paragraph(auth.actual_spec, body_arch_style)],
-            [Paragraph("Заключение о подлинности", bold_arch_style), Paragraph(auth.verdict, verdict_badge_style)],
-            [Paragraph("Экспертный вывод", body_arch_style), Paragraph(auth.comment, body_arch_style)],
+            [Paragraph("Параметр платформы", bold_style), Paragraph("Характеристика и результат верификации", bold_style)],
+            [Paragraph("Предполагаемый АЦП стиков", body_style), Paragraph(f"<b>{auth.stick_adc_str}</b>", body_style)],
+            [Paragraph("Предполагаемый АЦП курков", body_style), Paragraph(f"<b>{auth.trigger_adc_str}</b>", body_style)],
+            [Paragraph("Платформенный профиль", body_style), Paragraph(f"<b>{auth.archetype}</b>", body_style)],
+            [Paragraph("Ожидается по спецификации", body_style), Paragraph(auth.expected_spec, body_style)],
+            [Paragraph("Фактически обнаружено", body_style), Paragraph(auth.actual_spec, body_style)],
+            [Paragraph("Заключение о подлинности", bold_style), Paragraph(auth.verdict, verdict_badge_style)],
+            [Paragraph("Экспертный вывод", body_style), Paragraph(auth.comment, body_style)],
         ]
 
-        t_arch = Table(arch_table_data, colWidths=[140, 398])
+        t_arch = Table(arch_table_data, colWidths=[140, avail_w - 140])
         t_arch.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F1F5F9')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-            ('TOPPADDING', (0, 0), (-1, -1), 2),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
             ('BACKGROUND', (1, 6), (1, 6), badge_bg),
         ]))
         elements.append(t_arch)
