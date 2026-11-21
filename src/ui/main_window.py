@@ -337,15 +337,67 @@ class MainWindow(QMainWindow):
             elif "r2 trigger" in name_low or "rt trigger" in name_low or "right trigger" in name_low or "gas" in name_low:
                 self._trig_r_axis = code
 
-        # Hardware fallback: if active profile specifies an RS axis the device lacks
+        # Hardware fallback & dynamic topology resolution
         if self.current_device:
-            if not self.current_device.has_axis(self._rs_x_axis):
-                if self.current_device.has_axis(ABS_Z):
-                    self._rs_x_axis = ABS_Z
-                    self._rs_y_axis = ABS_RZ
-                elif self.current_device.has_axis(ABS_RX):
-                    self._rs_x_axis = ABS_RX
-                    self._rs_y_axis = ABS_RY
+            # 1. Left Stick validation
+            if not self.current_device.has_axis(self._ls_x_axis):
+                if self.current_device.has_axis(ABS_X):
+                    self._ls_x_axis = ABS_X
+            if not self.current_device.has_axis(self._ls_y_axis):
+                if self.current_device.has_axis(ABS_Y):
+                    self._ls_y_axis = ABS_Y
+
+            # 2. Right Stick validation & topology detection
+            has_z = self.current_device.has_axis(ABS_Z)
+            has_rx = self.current_device.has_axis(ABS_RX)
+            has_ry = self.current_device.has_axis(ABS_RY)
+            has_rz = self.current_device.has_axis(ABS_RZ)
+
+            if has_z and has_rx and not has_ry and not has_rz:
+                # 4-axis sequential desktop HID descriptor (e.g. Hori Pokken, generic USB gamepad, Switch HID):
+                # ABS_Z is Right Stick X, ABS_RX is Right Stick Y
+                self._rs_x_axis = ABS_Z
+                self._rs_y_axis = ABS_RX
+            else:
+                # Validate RS X
+                if not self.current_device.has_axis(self._rs_x_axis):
+                    if has_rx:
+                        self._rs_x_axis = ABS_RX
+                    elif has_z:
+                        self._rs_x_axis = ABS_Z
+
+                # Validate RS Y
+                if not self.current_device.has_axis(self._rs_y_axis) or self._rs_y_axis == self._rs_x_axis:
+                    if self._rs_x_axis == ABS_Z:
+                        for cand in (ABS_RZ, ABS_RX, ABS_RY):
+                            if self.current_device.has_axis(cand):
+                                self._rs_y_axis = cand
+                                break
+                    else:
+                        for cand in (ABS_RY, ABS_RZ, ABS_Z):
+                            if self.current_device.has_axis(cand):
+                                self._rs_y_axis = cand
+                                break
+
+            # 3. Triggers validation & collision prevention with Right Stick
+            rs_axes = {self._rs_x_axis, self._rs_y_axis}
+            if (self._trig_l_axis in rs_axes or
+                self._trig_r_axis in rs_axes or
+                not self.current_device.has_axis(self._trig_l_axis)):
+                if self.current_device.has_axis(ABS_BRAKE) and self.current_device.has_axis(ABS_GAS):
+                    self._trig_l_axis = ABS_BRAKE
+                    self._trig_r_axis = ABS_GAS
+                elif has_z and has_rz and ABS_Z not in rs_axes and ABS_RZ not in rs_axes:
+                    self._trig_l_axis = ABS_Z
+                    self._trig_r_axis = ABS_RZ
+                elif has_rx and has_ry and ABS_RX not in rs_axes and ABS_RY not in rs_axes:
+                    self._trig_l_axis = ABS_RX
+                    self._trig_r_axis = ABS_RY
+                else:
+                    # Device has no independent analog trigger axes (e.g. digital ZL/ZR only).
+                    # Use non-colliding virtual IDs so digital trigger bridge doesn't conflict with sticks.
+                    self._trig_l_axis = 0x20
+                    self._trig_r_axis = 0x21
 
             min_lx, max_lx = self.current_device.get_axis_range(self._ls_x_axis, default=(-32768, 32767))
             min_ly, max_ly = self.current_device.get_axis_range(self._ls_y_axis, default=(-32768, 32767))

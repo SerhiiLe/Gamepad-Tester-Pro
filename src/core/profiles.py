@@ -249,6 +249,7 @@ PROFILES: Dict[str, Dict] = {
             ABS_X:     "Left Stick X",
             ABS_Y:     "Left Stick Y",
             ABS_Z:     "Right Stick X",
+            ABS_RX:    "Right Stick Y",
             ABS_RZ:    "Right Stick Y",
             ABS_HAT0X: "D-Pad X (Hat)",
             ABS_HAT0Y: "D-Pad Y (Hat)",

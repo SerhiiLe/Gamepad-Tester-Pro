@@ -462,20 +462,20 @@ class TestGamepadAnalyzers(unittest.TestCase):
         win.close()
 
     def test_switch_gp2040_controller(self):
-        """Verifies full support for GP2040-CE in HORI Pokken Nintendo Switch mode."""
+        """Verifies full support for HORI Pokken / Nintendo Switch Generic HID mode."""
         from src.core.device import GamepadDevice
         from src.core.profiles import detect_layout_flavor, get_button_info
         from src.core.constants import (
             BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z,
             BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL,
-            ABS_X, ABS_Y, ABS_Z, ABS_RZ, EV_KEY, EV_ABS
+            ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RZ, EV_KEY, EV_ABS
         )
         from src.core.reader import RawInputEvent
         from src.ui.main_window import MainWindow
 
-        # 1. Profile detection
+        # 1. Profile detection (HORI Pokken with real 4-axis topology: ABS_X, ABS_Y, ABS_Z, ABS_RX)
         key_bits = {BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL}
-        abs_bits = {ABS_X, ABS_Y, ABS_Z, ABS_RZ}
+        abs_bits = {ABS_X, ABS_Y, ABS_Z, ABS_RX}
         flavor = detect_layout_flavor("HORI CO.,LTD. POKKEN CONTROLLER", key_bits, abs_bits)
         self.assertEqual(flavor, "switch")
 
@@ -498,22 +498,24 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertIn("ZL", btn_zl)
         self.assertIn("ZR", btn_zr)
 
-        # 3. MainWindow event handling with 0..255 axes
+        # 3. MainWindow event handling with 4-axis HID device (ABS_Z = RS X, ABS_RX = RS Y, range 0..255)
         win = MainWindow()
         mock_dev = GamepadDevice("HORI CO.,LTD. POKKEN CONTROLLER", event_path=None, key_bits=key_bits, abs_bits=abs_bits)
         mock_dev.abs_info = {
             ABS_X: (0, 255),
             ABS_Y: (0, 255),
             ABS_Z: (0, 255),
-            ABS_RZ: (0, 255)
+            ABS_RX: (0, 255)
         }
         win.current_device = mock_dev
         win.current_profile_key = "switch"
         win._update_axis_mappings()
 
-        # Apply raw ranges from device
-        win.left_stick_analyzer.set_raw_ranges(0, 255, 0, 255)
-        win.right_stick_analyzer.set_raw_ranges(0, 255, 0, 255)
+        # Verify dynamic axis resolution for 4-axis descriptor
+        self.assertEqual(win._rs_x_axis, ABS_Z)
+        self.assertEqual(win._rs_y_axis, ABS_RX)
+        self.assertNotIn(win._trig_l_axis, (ABS_Z, ABS_RX))
+        self.assertNotIn(win._trig_r_axis, (ABS_Z, ABS_RX))
 
         # Left stick full right (255)
         win._on_input_event(RawInputEvent(100.0, EV_ABS, ABS_X, 255))
@@ -527,9 +529,13 @@ class TestGamepadAnalyzers(unittest.TestCase):
         win._on_input_event(RawInputEvent(100.2, EV_ABS, ABS_Z, 0))
         self.assertAlmostEqual(win.right_stick_analyzer.curr_x, -1.0, places=2)
 
-        # Right stick: ABS_RZ (Right Stick Y) full down (255)
-        win._on_input_event(RawInputEvent(100.3, EV_ABS, ABS_RZ, 255))
+        # Right stick: ABS_RX (Right Stick Y) full down (255)
+        win._on_input_event(RawInputEvent(100.3, EV_ABS, ABS_RX, 255))
         self.assertAlmostEqual(win.right_stick_analyzer.curr_y, -1.0, places=2)
+
+        # Right stick: ABS_RX full up (0)
+        win._on_input_event(RawInputEvent(100.35, EV_ABS, ABS_RX, 0))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_y, 1.0, places=2)
 
         # Digital triggers: pressing ZL (BTN_TL) sets left trigger to 100%
         win._on_input_event(RawInputEvent(100.4, EV_KEY, BTN_TL, 1))
@@ -540,6 +546,19 @@ class TestGamepadAnalyzers(unittest.TestCase):
         win._on_input_event(RawInputEvent(100.5, EV_KEY, BTN_TL, 0))
         l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
         self.assertEqual(l_pct, 0.0)
+
+        # Also verify switch pad with ABS_RZ (Z/Rz topology)
+        mock_rz_dev = GamepadDevice("Nintendo Switch Controller", event_path=None, key_bits=key_bits, abs_bits={ABS_X, ABS_Y, ABS_Z, ABS_RZ})
+        mock_rz_dev.abs_info = {
+            ABS_X: (0, 255),
+            ABS_Y: (0, 255),
+            ABS_Z: (0, 255),
+            ABS_RZ: (0, 255)
+        }
+        win.current_device = mock_rz_dev
+        win._update_axis_mappings()
+        self.assertEqual(win._rs_x_axis, ABS_Z)
+        self.assertEqual(win._rs_y_axis, ABS_RZ)
 
         win.close()
 
