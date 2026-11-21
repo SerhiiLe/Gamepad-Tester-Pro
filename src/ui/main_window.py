@@ -148,6 +148,10 @@ class MainWindow(QMainWindow):
         self.w_stick_right = StickWidget(self.right_stick_analyzer, title="Правый стик (RS)", title_key="stick_right_name")
         top_row.addWidget(self.w_stick_right, stretch=3)
 
+        # Synchronize stage mode selection between Left and Right sticks
+        self.w_stick_left.stage_changed.connect(self.w_stick_right.set_stage)
+        self.w_stick_right.stage_changed.connect(self.w_stick_left.set_stage)
+
         self.w_anomalies = StickAnomaliesWidget(self.left_stick_analyzer, self.right_stick_analyzer)
         top_row.addWidget(self.w_anomalies, stretch=4)
 

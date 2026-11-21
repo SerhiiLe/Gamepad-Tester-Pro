@@ -13,7 +13,7 @@ import numpy as np
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QFrame, QGroupBox
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 import pyqtgraph as pg
 
 from ...analysis.sticks import StickAnalyzer
@@ -22,6 +22,8 @@ from ...i18n import tr
 
 class StickWidget(QWidget):
     """Visualizes stick 2D deflection, guided testing stages, circularity, and noise."""
+
+    stage_changed = Signal(int)
 
     TARGET_ZONES = [
         {"key": "zone_north", "x": 0.0,   "y": 0.65,  "color": "#38BDF8"},
@@ -160,7 +162,17 @@ class StickWidget(QWidget):
         self.btn_reset.setText(tr("btn_reset"))
         self._update_hint_text()
 
-    def _on_stage_changed(self, idx: int):
+    def set_stage(self, idx: int):
+        """Sets active stage synchronized from peer stick widget without recursion."""
+        if self.current_stage == idx:
+            return
+        if 0 <= idx < self.combo_stages.count():
+            self.combo_stages.blockSignals(True)
+            self.combo_stages.setCurrentIndex(idx)
+            self.combo_stages.blockSignals(False)
+            self._on_stage_changed(idx, emit_signal=False)
+
+    def _on_stage_changed(self, idx: int, emit_signal: bool = True):
         self.current_stage = idx
         self.analyzer.active_stage = idx
         self.analyzer.is_inside_target = False
@@ -188,6 +200,8 @@ class StickWidget(QWidget):
             self.scatter_boundary.clear()
 
         self._update_hint_text()
+        if emit_signal:
+            self.stage_changed.emit(idx)
 
     def _update_hint_text(self):
         idx = self.current_stage
@@ -216,7 +230,7 @@ class StickWidget(QWidget):
         self.target_hold_timer_frames = 0
         self.target_settling_frames = 0
         self.target_zone_idx = 0
-        self._on_stage_changed(self.current_stage)
+        self._on_stage_changed(self.current_stage, emit_signal=False)
 
     def update_view(self):
         x, y = self.analyzer.curr_x, self.analyzer.curr_y

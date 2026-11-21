@@ -357,6 +357,44 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertIn("%", w_trig.lbl_l_val.text())
         self.assertIn("%", w_trig.lbl_r_val.text())
 
+    def test_stick_stage_synchronization(self):
+        """Verifies synchronized stage switching across sticks while keeping hints and resets separate."""
+        from src.ui.main_window import MainWindow
+        win = MainWindow()
+
+        # Both initially in Stage 0 (Free Run)
+        self.assertEqual(win.w_stick_left.current_stage, 0)
+        self.assertEqual(win.w_stick_right.current_stage, 0)
+        self.assertEqual(win.w_stick_left.combo_stages.currentIndex(), 0)
+        self.assertEqual(win.w_stick_right.combo_stages.currentIndex(), 0)
+
+        # 1. Changing left stick stage to 2 (Circularity) syncs right stick
+        win.w_stick_left.combo_stages.setCurrentIndex(2)
+        self.assertEqual(win.w_stick_left.current_stage, 2)
+        self.assertEqual(win.w_stick_right.current_stage, 2)
+        self.assertEqual(win.w_stick_right.combo_stages.currentIndex(), 2)
+        self.assertEqual(win.left_stick_analyzer.active_stage, 2)
+        self.assertEqual(win.right_stick_analyzer.active_stage, 2)
+
+        # 2. Changing right stick stage to 1 (Center) syncs left stick
+        win.w_stick_right.combo_stages.setCurrentIndex(1)
+        self.assertEqual(win.w_stick_left.current_stage, 1)
+        self.assertEqual(win.w_stick_right.current_stage, 1)
+        self.assertEqual(win.w_stick_left.combo_stages.currentIndex(), 1)
+        self.assertEqual(win.left_stick_analyzer.active_stage, 1)
+        self.assertEqual(win.right_stick_analyzer.active_stage, 1)
+
+        # 3. Independent resets: resetting left stick data does not affect right stick
+        win.right_stick_analyzer.adc_bits = 12.0
+        win.w_stick_left.btn_reset.click()
+        # Stage remains 1 on both
+        self.assertEqual(win.w_stick_left.current_stage, 1)
+        self.assertEqual(win.w_stick_right.current_stage, 1)
+        # Right stick analyzer data is not wiped by left stick reset
+        self.assertEqual(win.right_stick_analyzer.adc_bits, 12.0)
+
+        win.close()
+
 
 if __name__ == "__main__":
     unittest.main()
