@@ -208,17 +208,27 @@ class StickWidget(QWidget):
         if idx == 0:
             self.lbl_hint.setText(tr("hint_free"))
         elif idx == 1:
-            self.lbl_hint.setText(tr("hint_center"))
+            if self.analyzer.center_tested:
+                self.lbl_hint.setText(tr("hint_center_done", drift=self.analyzer.center_drift_pct))
+            else:
+                self.lbl_hint.setText(tr("hint_center"))
         elif idx == 2:
-            self.lbl_hint.setText(tr("hint_circle"))
+            cov = self.analyzer.get_circularity_coverage_pct()
+            if cov >= 95.0:
+                self.lbl_hint.setText(tr("hint_circle_done", circ=self.analyzer.circularity_error_pct))
+            else:
+                self.lbl_hint.setText(tr("hint_circle"))
         elif idx == 3:
-            zone_key = self.TARGET_ZONES[self.target_zone_idx]["key"] if self.target_zone_idx < len(self.TARGET_ZONES) else "zone_north"
-            self.lbl_hint.setText(f"🎯 {tr(zone_key)}")
+            if self.target_zone_idx >= len(self.TARGET_ZONES):
+                self.lbl_hint.setText(tr("hint_targets_done", noise=self.analyzer.peak_jitter_pct))
+            else:
+                zone_key = self.TARGET_ZONES[self.target_zone_idx]["key"]
+                self.lbl_hint.setText(tr("hint_targets_move", zone=tr(zone_key)))
         elif idx == 4:
-            if self.analyzer.total_flicks_x < 5:
-                self.lbl_hint.setText(tr("hint_snapback_x", done=self.analyzer.total_flicks_x, total=5))
-            elif self.analyzer.total_flicks_y < 5:
-                self.lbl_hint.setText(tr("hint_snapback_y", done=self.analyzer.total_flicks_y, total=5))
+            if self.analyzer.total_flicks_x < 6:
+                self.lbl_hint.setText(tr("hint_snapback_x"))
+            elif self.analyzer.total_flicks_y < 6:
+                self.lbl_hint.setText(tr("hint_snapback_y"))
             else:
                 self.lbl_hint.setText(tr("hint_snapback_done", x_rate=int(self.analyzer.snapback_rate_x_pct), y_rate=int(self.analyzer.snapback_rate_y_pct)))
 
@@ -258,38 +268,38 @@ class StickWidget(QWidget):
         if self.current_stage == 0:
             if self.analyzer.adc_bits > 0:
                 self.lbl_metrics.setText(
-                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | ADC: <b>~{self.analyzer.adc_bits:.0f} bit</b> (step: {self.analyzer.adc_step})"
+                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | {tr('metric_adc')}: <b>~{self.analyzer.adc_bits:.0f} {tr('metric_bit')}</b> ({tr('metric_step')}: {self.analyzer.adc_step})"
                 )
             else:
                 self.lbl_metrics.setText(
-                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | ADC: <i>...</i>"
+                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | {tr('metric_adc')}: <i>{tr('metric_adc_hint')}</i>"
                 )
         elif self.current_stage == 1:
             drift = self.analyzer.center_drift_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Center: <b>{drift:.1f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | {tr('metric_center')}: <b>{drift:.1f}%</b>")
         elif self.current_stage == 2:
             cov = self.analyzer.get_circularity_coverage_pct()
             circ = self.analyzer.circularity_error_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Cov: <b>{cov:.0f}%</b> | Err: <b>{circ:.1f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | {tr('metric_coverage')}: <b>{cov:.0f}%</b> | {tr('metric_error')}: <b>{circ:.1f}%</b>")
         elif self.current_stage == 3:
             noise = self.analyzer.peak_jitter_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Noise: <b>{noise:.2f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | {tr('metric_noise')}: <b>{noise:.2f}%</b>")
         elif self.current_stage == 4:
             flicks = self.analyzer.total_flicks
             peak = self.analyzer.peak_snapback_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Flicks: <b>{flicks}/10</b> | Peak: <b>{peak:.1f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | {tr('metric_flicks')}: <b>{flicks}/12</b> | {tr('metric_peak')}: <b>{peak:.1f}%</b>")
 
         # Stable instructional transitions
         if self.current_stage == 1:
             if self.analyzer.center_tested:
-                self.lbl_hint.setText("✅ " + tr("stage_center"))
+                self.lbl_hint.setText(tr("hint_center_done", drift=self.analyzer.center_drift_pct))
             else:
                 self.lbl_hint.setText(tr("hint_center"))
 
         elif self.current_stage == 2:
             cov = self.analyzer.get_circularity_coverage_pct()
             if cov >= 95.0:
-                self.lbl_hint.setText("✅ " + tr("stage_circle"))
+                self.lbl_hint.setText(tr("hint_circle_done", circ=self.analyzer.circularity_error_pct))
             else:
                 self.lbl_hint.setText(tr("hint_circle"))
 
@@ -305,9 +315,9 @@ class StickWidget(QWidget):
                     if self.target_settling_frames > 10:
                         self.analyzer.is_inside_target = True
                         self.target_hold_timer_frames += 1
-                        self.lbl_hint.setText(f"🎯 {zone_title}")
+                        self.lbl_hint.setText(tr("hint_targets_measuring", zone=zone_title))
                     else:
-                        self.lbl_hint.setText(f"⏳ {zone_title}")
+                        self.lbl_hint.setText(tr("hint_targets_settling", zone=zone_title))
 
                     if self.target_hold_timer_frames >= self.target_hold_required_frames:
                         self.target_hold_timer_frames = 0
@@ -317,25 +327,25 @@ class StickWidget(QWidget):
                         self.analyzer.clear_target_samples()
                         if self.target_zone_idx < len(self.TARGET_ZONES):
                             next_name = tr(self.TARGET_ZONES[self.target_zone_idx]["key"])
-                            self.lbl_hint.setText(f"🎯 {next_name}")
+                            self.lbl_hint.setText(tr("hint_targets_move", zone=next_name))
                         else:
                             self.active_target_scatter.setVisible(False)
-                            self.lbl_hint.setText("🎉 OK")
+                            self.lbl_hint.setText(tr("hint_targets_done", noise=self.analyzer.peak_jitter_pct))
                 else:
                     self.analyzer.is_inside_target = False
                     self.analyzer.clear_target_samples()
                     self.target_settling_frames = 0
                     self.target_hold_timer_frames = max(0, self.target_hold_timer_frames - 2)
-                    self.lbl_hint.setText(f"🎯 {zone_title}")
+                    self.lbl_hint.setText(tr("hint_targets_move", zone=zone_title))
             else:
                 self.analyzer.is_inside_target = False
                 self.active_target_scatter.setVisible(False)
-                self.lbl_hint.setText("🎉 OK")
+                self.lbl_hint.setText(tr("hint_targets_done", noise=self.analyzer.peak_jitter_pct))
 
         elif self.current_stage == 4:
-            if self.analyzer.total_flicks_x < 5:
-                self.lbl_hint.setText(tr("hint_snapback_x", done=self.analyzer.total_flicks_x, total=5))
-            elif self.analyzer.total_flicks_y < 5:
-                self.lbl_hint.setText(tr("hint_snapback_y", done=self.analyzer.total_flicks_y, total=5))
+            if self.analyzer.total_flicks_x < 6:
+                self.lbl_hint.setText(tr("hint_snapback_x"))
+            elif self.analyzer.total_flicks_y < 6:
+                self.lbl_hint.setText(tr("hint_snapback_y"))
             else:
                 self.lbl_hint.setText(tr("hint_snapback_done", x_rate=int(self.analyzer.snapback_rate_x_pct), y_rate=int(self.analyzer.snapback_rate_y_pct)))

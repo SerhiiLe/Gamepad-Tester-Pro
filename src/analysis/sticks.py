@@ -91,7 +91,7 @@ class StickAnalyzer:
         self._release_overshoot_axis: str = "X"
 
         # Stage 4: Snapback dynamics & series
-        self.target_flicks_count: int = 10
+        self.target_flicks_count: int = 12
         self.total_flicks: int = 0
         self.total_flicks_x: int = 0
         self.total_flicks_y: int = 0

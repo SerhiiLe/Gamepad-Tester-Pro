@@ -395,6 +395,72 @@ class TestGamepadAnalyzers(unittest.TestCase):
 
         win.close()
 
+    def test_stick_widget_hints_and_completion(self):
+        """Verifies compact hints, 6-flick snapback thresholds (12 total), and '✅ Тест пройден' banners."""
+        from src.i18n import i18n
+        from src.ui.main_window import MainWindow
+
+        i18n.set_language("RU")
+        win = MainWindow()
+        sw = win.w_stick_left
+
+        # Stage 0: Free run
+        sw._on_stage_changed(0)
+        self.assertIn("Свободный ход", sw.lbl_hint.text())
+
+        # Stage 1: Center
+        sw._on_stage_changed(1)
+        self.assertIn("Отпустите стик в центр", sw.lbl_hint.text())
+        sw.analyzer.center_tested = True
+        sw.analyzer.center_drift_pct = 2.4
+        sw.update_view()
+        self.assertIn("✅ Тест пройден (дрейф: 2.4%)", sw.lbl_hint.text())
+
+        # Stage 2: Circularity
+        sw._on_stage_changed(2)
+        self.assertIn("Опишите полный круг", sw.lbl_hint.text())
+        sw.analyzer.circularity_error_pct = 4.8
+        # Simulate 95% coverage
+        sw.analyzer._outer_envelope = {i: 1.0 for i in range(72)}
+        sw.update_view()
+        self.assertIn("✅ Тест пройден (ошибка: 4.8%)", sw.lbl_hint.text())
+
+        # Stage 3: Targets / Noise
+        sw._on_stage_changed(3)
+        self.assertIn("Направьте в кружок", sw.lbl_hint.text())
+        sw.target_zone_idx = len(sw.TARGET_ZONES)
+        sw.analyzer.peak_jitter_pct = 0.35
+        sw.update_view()
+        self.assertIn("✅ Тест пройден (шум: 0.35%)", sw.lbl_hint.text())
+
+        # Stage 4: Snapback (6 per axis, total 12)
+        sw._on_stage_changed(4)
+        sw.analyzer.total_flicks_x = 0
+        sw.analyzer.total_flicks_y = 0
+        sw.update_view()
+        self.assertEqual(sw.lbl_hint.text(), "⚡ 1. Отведите по горизонтали и отпустите")
+        self.assertIn("/12", sw.lbl_metrics.text())
+
+        sw.analyzer.total_flicks_x = 6
+        sw.analyzer.total_flicks_y = 0
+        sw.update_view()
+        self.assertEqual(sw.lbl_hint.text(), "⚡ 2. Отведите по вертикали и отпустите")
+
+        sw.analyzer.total_flicks_y = 6
+        sw.analyzer.snapback_rate_x_pct = 0.0
+        sw.analyzer.snapback_rate_y_pct = 0.0
+        sw.update_view()
+        self.assertIn("✅ Тест пройден (Snapback: X 0%, Y 0%)", sw.lbl_hint.text())
+
+        # Test EN language switching
+        i18n.set_language("EN")
+        sw.retranslate_ui()
+        self.assertIn("✅ Test passed (Snapback: X 0%, Y 0%)", sw.lbl_hint.text())
+
+        # Reset language to RU
+        i18n.set_language("RU")
+        win.close()
+
 
 if __name__ == "__main__":
     unittest.main()
