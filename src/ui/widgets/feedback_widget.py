@@ -8,7 +8,7 @@ and Microsoft Xbox Ring of Light patterns.
 from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QSlider, QGroupBox, QTabWidget, QFrame
+    QPushButton, QSlider, QGroupBox, QTabWidget, QFrame, QTextEdit
 )
 from PySide6.QtCore import Qt
 
@@ -110,82 +110,74 @@ class FeedbackWidget(QWidget):
         self.led_tabs = QTabWidget()
 
         # ----------------------------------------------------------------------
-        # Tab 0: Information & Hardware Compatibility
+        # Tab 0: Information & Hardware Compatibility (Scrollable Text Block)
         # ----------------------------------------------------------------------
         tab_info = QWidget()
         l_info = QVBoxLayout(tab_info)
-        l_info.setContentsMargins(12, 12, 12, 12)
-        l_info.setSpacing(10)
+        l_info.setContentsMargins(4, 4, 4, 4)
 
-        lbl_info_title = QLabel("<b>Аппаратная поддержка световой индикации и подсветки в Linux</b>")
-        lbl_info_title.setStyleSheet("font-size: 14px; color: #38BDF8; font-weight: bold;")
-        l_info.addWidget(lbl_info_title)
+        self.txt_info = QTextEdit()
+        self.txt_info.setReadOnly(True)
+        self.txt_info.setStyleSheet("""
+            QTextEdit {
+                background-color: #111827;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #F8FAFC;
+                padding: 10px;
+                font-family: 'Segoe UI', 'Ubuntu', 'Roboto', 'DejaVu Sans', sans-serif;
+            }
+        """)
 
-        lbl_info_desc = QLabel(
-            "В отличие от стандартных кнопок и осей, прямое программное управление светодиодами геймпада "
-            "не стандартизировано в базовом USB HID и поддерживается ядром Linux только для специализированных "
-            "фирменных платформ со специфическими системными драйверами:"
-        )
-        lbl_info_desc.setWordWrap(True)
-        lbl_info_desc.setStyleSheet("color: #E2E8F0; font-size: 12px; line-height: 1.4;")
-        l_info.addWidget(lbl_info_desc)
+        info_html = """
+        <div style="font-family: 'Segoe UI', 'Ubuntu', 'Roboto', sans-serif;">
+          <h3 style="color: #38BDF8; margin-top: 0px; margin-bottom: 6px;">ℹ️ Аппаратная поддержка световой индикации и подсветки в Linux</h3>
+          <p style="color: #CBD5E1; font-size: 13px; line-height: 1.45; margin-bottom: 12px;">
+            В отличие от стандартных кнопок и осей, прямое программное управление светодиодами геймпада
+            не стандартизировано в базовом USB HID и поддерживается ядром Linux только для специализированных
+            фирменных платформ со специфическими системными драйверами:
+          </p>
 
-        # Sony Card
-        card_sony = QFrame()
-        card_sony.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 6px;")
-        l_card_s = QVBoxLayout(card_sony)
-        l_card_s.setContentsMargins(10, 8, 10, 8)
-        l_card_s.setSpacing(4)
-        lbl_s_head = QLabel("🎮 <b>Sony PlayStation — Полноцветный RGB Lightbar</b>")
-        lbl_s_head.setStyleSheet("color: #38BDF8; font-size: 13px;")
-        l_card_s.addWidget(lbl_s_head)
-        lbl_s_text = QLabel(
-            "• <b>DualSense (PS5):</b> Индивидуальная RGB-подсветка контура тачпада и индикация игрока (драйвер <code>hid-playstation</code>).<br>"
-            "• <b>DualShock 4 (PS4):</b> Световая полоса RGB Lightbar (драйвер <code>hid-sony</code> или <code>hid-playstation</code>)."
-        )
-        lbl_s_text.setWordWrap(True)
-        lbl_s_text.setStyleSheet("color: #94A3B8; font-size: 12px;")
-        l_card_s.addWidget(lbl_s_text)
-        l_info.addWidget(card_sony)
+          <table width="100%" cellpadding="8" cellspacing="0" style="margin-bottom: 10px; background-color: #1E293B; border: 1px solid #334155; border-radius: 6px;">
+            <tr>
+              <td>
+                <b style="color: #38BDF8; font-size: 13px;">🎮 Sony PlayStation — Полноцветный RGB Lightbar</b><br/>
+                <span style="color: #94A3B8; font-size: 12px; line-height: 1.45;">
+                  • <b>DualSense (PS5):</b> Индивидуальная RGB-подсветка контура тачпада и индикация игрока (драйвер ядра <code>hid-playstation</code>). Поддерживаются прямые HID output reports (<code>0x02</code> / <code>0x31</code>) и sysfs.<br/>
+                  • <b>DualShock 4 (PS4):</b> Световая полоса RGB Lightbar (драйвер <code>hid-sony</code> или <code>hid-playstation</code>).
+                </span>
+              </td>
+            </tr>
+          </table>
 
-        # Xbox Card
-        card_xbox = QFrame()
-        card_xbox.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 6px;")
-        l_card_x = QVBoxLayout(card_xbox)
-        l_card_x.setContentsMargins(10, 8, 10, 8)
-        l_card_x.setSpacing(4)
-        lbl_x_head = QLabel("🎮 <b>Microsoft Xbox — Светодиодное кольцо (Ring of Light)</b>")
-        lbl_x_head.setStyleSheet("color: #10B981; font-size: 13px;")
-        l_card_x.addWidget(lbl_x_head)
-        lbl_x_text = QLabel(
-            "• <b>Xbox 360 Controller (проводные и беспроводные с ресивером):</b> 4-сегментное кольцо квадрантов игроков и анимации (вращение, мигание, чередование) через драйвер <code>xpad</code> в sysfs.<br>"
-            "<i>Примечание:</i> На геймпадах Xbox One / Series кнопка Xbox светится статично и программно не управляется через открытый драйвер."
-        )
-        lbl_x_text.setWordWrap(True)
-        lbl_x_text.setStyleSheet("color: #94A3B8; font-size: 12px;")
-        l_card_x.addWidget(lbl_x_text)
-        l_info.addWidget(card_xbox)
+          <table width="100%" cellpadding="8" cellspacing="0" style="margin-bottom: 10px; background-color: #1E293B; border: 1px solid #334155; border-radius: 6px;">
+            <tr>
+              <td>
+                <b style="color: #10B981; font-size: 13px;">🎮 Microsoft Xbox — Светодиодное кольцо (Ring of Light)</b><br/>
+                <span style="color: #94A3B8; font-size: 12px; line-height: 1.45;">
+                  • <b>Xbox 360 Controller (проводные и беспроводные с ресивером):</b> 4-сегментное кольцо квадрантов игроков и системные анимации (вращение, мигание, чередование) через драйвер <code>xpad</code> в sysfs (<code>/sys/class/leds/xpad*/brightness</code>). <i>Требуются права root или udev-правило.</i><br/>
+                  • <b>Xbox One / Series:</b> Кнопка Xbox светится статично белым светом и программно не управляется через открытый драйвер.
+                </span>
+              </td>
+            </tr>
+          </table>
 
-        # Other Controllers Card
-        card_other = QFrame()
-        card_other.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 6px;")
-        l_card_o = QVBoxLayout(card_other)
-        l_card_o.setContentsMargins(10, 8, 10, 8)
-        l_card_o.setSpacing(4)
-        lbl_o_head = QLabel("❌ <b>Остальные контроллеры (Не поддерживаются ОС)</b>")
-        lbl_o_head.setStyleSheet("color: #F59E0B; font-size: 13px;")
-        l_card_o.addWidget(lbl_o_head)
-        lbl_o_text = QLabel(
-            "• <b>Nintendo Switch Pro:</b> Кольцо подсветки кнопки Home требует закрытых вендорных субкоманд.<br>"
-            "• <b>Сторонние геймпады (Flydigi, 8BitDo, Gamesir, Defender, реплики):</b> Декоративная подсветка управляется встроенным микроконтроллером автономно (комбинациями кнопок на корпусе) и не имеет программного API в ОС.<br>"
-            "• <b>Стандартные DInput / Generic USB геймпады:</b> Программное управление светодиодами отсутствует в HID-дескрипторе."
-        )
-        lbl_o_text.setWordWrap(True)
-        lbl_o_text.setStyleSheet("color: #94A3B8; font-size: 12px;")
-        l_card_o.addWidget(lbl_o_text)
-        l_info.addWidget(card_other)
-
-        l_info.addStretch(1)
+          <table width="100%" cellpadding="8" cellspacing="0" style="margin-bottom: 6px; background-color: #1E293B; border: 1px solid #334155; border-radius: 6px;">
+            <tr>
+              <td>
+                <b style="color: #F59E0B; font-size: 13px;">❌ Остальные контроллеры (Не поддерживаются ОС)</b><br/>
+                <span style="color: #94A3B8; font-size: 12px; line-height: 1.45;">
+                  • <b>Nintendo Switch Pro / Joy-Con:</b> Кольцо подсветки кнопки Home требует закрытых вендорных субкоманд <code>hid-nintendo</code>.<br/>
+                  • <b>Сторонние геймпады (Flydigi, 8BitDo, Gamesir, Defender, реплики):</b> Декоративная подсветка управляется автономным микроконтроллером на корпусе (комбинациями аппаратных кнопок) и не имеет программного API в ОС.<br/>
+                  • <b>Стандартные DInput / Generic USB геймпады:</b> Программное управление светодиодами отсутствует в HID-дескрипторе.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </div>
+        """
+        self.txt_info.setHtml(info_html)
+        l_info.addWidget(self.txt_info)
         self.led_tabs.addTab(tab_info, "ℹ️ О технологии и совместимости")
 
         # ----------------------------------------------------------------------
