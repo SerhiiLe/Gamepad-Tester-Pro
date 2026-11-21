@@ -320,16 +320,16 @@ class FeedbackWidget(QWidget):
             self.lbl_ff_status.setStyleSheet(
                 "background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; color: #94A3B8; font-size: 12px;"
             )
+            self.lbl_ff_status.setVisible(True)
         elif not has_ff:
             self.lbl_ff_status.setText(tr("ff_unsupported"))
             self.lbl_ff_status.setStyleSheet(
                 "background-color: #2D1515; border: 1px solid #7F1D1D; border-radius: 6px; padding: 8px 12px; color: #FCA5A5; font-size: 12px;"
             )
+            self.lbl_ff_status.setVisible(True)
         else:
-            self.lbl_ff_status.setText(tr("ff_supported"))
-            self.lbl_ff_status.setStyleSheet(
-                "background-color: #0E291E; border: 1px solid #065F46; border-radius: 6px; padding: 6px 12px; color: #6EE7B7; font-size: 12px;"
-            )
+            self.lbl_ff_status.setText("")
+            self.lbl_ff_status.setVisible(False)
 
     def _send_xbox_pattern(self, pid: int):
         ok, msg = self.led_ctrl.set_xpad_pattern(pid)

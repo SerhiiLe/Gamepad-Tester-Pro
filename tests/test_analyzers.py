@@ -304,6 +304,7 @@ class TestGamepadAnalyzers(unittest.TestCase):
         fb.auto_select_tab()
         self.assertEqual(fb.led_tabs.currentIndex(), 0)
         self.assertFalse(fb.slider_left.isEnabled())
+        self.assertFalse(fb.lbl_ff_status.isHidden())
         self.assertIn("не выбран", fb.lbl_ff_status.text())
 
         # Case 2: Device without Force Feedback
@@ -312,6 +313,7 @@ class TestGamepadAnalyzers(unittest.TestCase):
         fb.auto_select_tab()
         self.assertEqual(fb.led_tabs.currentIndex(), 0)
         self.assertFalse(fb.slider_left.isEnabled())
+        self.assertFalse(fb.lbl_ff_status.isHidden())
         self.assertIn("не поддерживает", fb.lbl_ff_status.text())
 
         # Case 3: Sony DualSense with Force Feedback
@@ -320,7 +322,7 @@ class TestGamepadAnalyzers(unittest.TestCase):
         fb.auto_select_tab()
         self.assertEqual(fb.led_tabs.currentIndex(), 1)
         self.assertTrue(fb.slider_left.isEnabled())
-        self.assertIn("поддерживается", fb.lbl_ff_status.text())
+        self.assertTrue(fb.lbl_ff_status.isHidden())
 
         # Case 4: Microsoft Xbox 360 with Force Feedback
         dev_xbox = MockDev("Microsoft X-Box 360 pad", vid=0x045E, pid=0x028E, has_ff=True, flavor="xbox")
@@ -328,7 +330,7 @@ class TestGamepadAnalyzers(unittest.TestCase):
         fb.auto_select_tab()
         self.assertEqual(fb.led_tabs.currentIndex(), 2)
         self.assertTrue(fb.slider_left.isEnabled())
-        self.assertIn("поддерживается", fb.lbl_ff_status.text())
+        self.assertTrue(fb.lbl_ff_status.isHidden())
 
     def test_trigger_analyzer_and_widget(self):
         """Verifies trigger values normalization and TriggerWidget UI updates."""
