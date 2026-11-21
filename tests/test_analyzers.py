@@ -509,6 +509,7 @@ class TestGamepadAnalyzers(unittest.TestCase):
         }
         win.current_device = mock_dev
         win.current_profile_key = "switch"
+        win._update_axis_mappings()
 
         # Apply raw ranges from device
         win.left_stick_analyzer.set_raw_ranges(0, 255, 0, 255)
@@ -647,6 +648,115 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertEqual(l_pct, 100.0)
 
         win._on_input_event(RawInputEvent(100.9, EV_KEY, BTN_TL, 0))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 0.0)
+
+        win.close()
+
+    def test_standard_linux_gamepad(self):
+        """Verifies full support for Standard Linux Gamepads (Linux Gamepad Specification - gamepad.rst)."""
+        from src.core.device import GamepadDevice
+        from src.core.profiles import detect_layout_flavor, get_button_info
+        from src.core.constants import (
+            BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z,
+            BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL, BTN_THUMBR,
+            ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ, EV_KEY, EV_ABS
+        )
+        from src.core.reader import RawInputEvent
+        from src.ui.main_window import MainWindow
+
+        # 1. Profile detection by capabilities and bipolar stick topology
+        key_bits = {BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL, BTN_THUMBR}
+        abs_bits = {ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ}
+        abs_info = {
+            ABS_X: (-32767, 32767),
+            ABS_Y: (-32767, 32767),
+            ABS_Z: (0, 255),
+            ABS_RX: (-32767, 32767),
+            ABS_RY: (-32767, 32767),
+            ABS_RZ: (0, 255),
+        }
+        flavor = detect_layout_flavor("RP2040 Gamepad rp2040", key_bits, abs_bits, vendor_id=0x2e8a, product_id=0x0013, abs_info=abs_info)
+        self.assertEqual(flavor, "standard")
+
+        # 2. Button mappings
+        btn_a, _ = get_button_info("standard", BTN_SOUTH)
+        btn_b, _ = get_button_info("standard", BTN_EAST)
+        btn_x, _ = get_button_info("standard", BTN_NORTH)
+        btn_y, _ = get_button_info("standard", BTN_WEST)
+        btn_lb, _ = get_button_info("standard", BTN_TL)
+        btn_rb, _ = get_button_info("standard", BTN_TR)
+        btn_lt, _ = get_button_info("standard", BTN_TL2)
+        btn_rt, _ = get_button_info("standard", BTN_TR2)
+        btn_sel, _ = get_button_info("standard", BTN_SELECT)
+        btn_sta, _ = get_button_info("standard", BTN_START)
+        btn_gui, _ = get_button_info("standard", BTN_MODE)
+        btn_ls, _ = get_button_info("standard", BTN_THUMBL)
+        btn_rs, _ = get_button_info("standard", BTN_THUMBR)
+
+        self.assertIn("A", btn_a)
+        self.assertIn("B", btn_b)
+        self.assertIn("X", btn_x)
+        self.assertIn("Y", btn_y)
+        self.assertIn("LB", btn_lb)
+        self.assertIn("RB", btn_rb)
+        self.assertIn("LT", btn_lt)
+        self.assertIn("RT", btn_rt)
+        self.assertIn("Select", btn_sel)
+        self.assertIn("Start", btn_sta)
+        self.assertIn("Guide", btn_gui)
+        self.assertIn("L3", btn_ls)
+        self.assertIn("R3", btn_rs)
+
+        # 3. MainWindow event handling with -32767..32767 sticks and 0..255 triggers
+        win = MainWindow()
+        mock_dev = GamepadDevice("RP2040 Gamepad rp2040", event_path=None, key_bits=key_bits, abs_bits=abs_bits)
+        mock_dev.abs_info = abs_info
+        win.current_device = mock_dev
+        win.current_profile_key = "standard"
+        win._update_axis_mappings()
+
+        # Left stick: ABS_X full right (32767)
+        win._on_input_event(RawInputEvent(100.0, EV_ABS, ABS_X, 32767))
+        self.assertAlmostEqual(win.left_stick_analyzer.curr_x, 1.0, places=2)
+
+        # Left stick: ABS_Y full up (-32767)
+        win._on_input_event(RawInputEvent(100.1, EV_ABS, ABS_Y, -32767))
+        self.assertAlmostEqual(win.left_stick_analyzer.curr_y, 1.0, places=2)
+
+        # Right stick: ABS_RX (Right Stick X) full left (-32767)
+        win._on_input_event(RawInputEvent(100.2, EV_ABS, ABS_RX, -32767))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_x, -1.0, places=2)
+
+        # Right stick: ABS_RY (Right Stick Y) full down (32767)
+        win._on_input_event(RawInputEvent(100.3, EV_ABS, ABS_RY, 32767))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_y, -1.0, places=2)
+
+        # Analog triggers: ABS_Z (LT) full press (255)
+        win._on_input_event(RawInputEvent(100.4, EV_ABS, ABS_Z, 255))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 100.0, places=1)
+        self.assertEqual(r_pct, 0.0)
+
+        # Analog triggers: ABS_RZ (RT) full press (255)
+        win._on_input_event(RawInputEvent(100.5, EV_ABS, ABS_RZ, 255))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 100.0, places=1)
+        self.assertAlmostEqual(r_pct, 100.0, places=1)
+
+        # Release triggers
+        win._on_input_event(RawInputEvent(100.6, EV_ABS, ABS_Z, 0))
+        win._on_input_event(RawInputEvent(100.7, EV_ABS, ABS_RZ, 0))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 0.0, places=1)
+        self.assertAlmostEqual(r_pct, 0.0, places=1)
+
+        # Digital triggers: BTN_TL2 (LT) and BTN_TR2 (RT)
+        win._on_input_event(RawInputEvent(100.8, EV_KEY, BTN_TL2, 1))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 100.0)
+
+        win._on_input_event(RawInputEvent(100.9, EV_KEY, BTN_TL2, 0))
         l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
         self.assertEqual(l_pct, 0.0)
 

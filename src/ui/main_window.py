@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
         # Data & Analysis Engine Instances
         self.devices: List[GamepadDevice] = []
         self.current_device: Optional[GamepadDevice] = None
-        self.current_profile_key: str = "xbox"
+        self.current_profile_key: str = "standard"
         self.input_reader: Optional[InputReader] = None
 
         self.polling_analyzer = PollingAnalyzer()
@@ -312,7 +312,7 @@ class MainWindow(QMainWindow):
 
     def _update_axis_mappings(self):
         """Resolves axis codes for Left/Right sticks and Triggers from active profile and device."""
-        profile = PROFILES.get(self.current_profile_key, PROFILES.get("xbox", {}))
+        profile = PROFILES.get(self.current_profile_key, PROFILES.get("standard", {}))
         axes_cfg = profile.get("axes", {})
 
         self._ls_x_axis = ABS_X
@@ -332,9 +332,9 @@ class MainWindow(QMainWindow):
                 self._rs_x_axis = code
             elif "right stick y" in name_low or "y rotation" in name_low or "z rotation" in name_low:
                 self._rs_y_axis = code
-            elif "l2 trigger" in name_low or "lt trigger" in name_low or "brake" in name_low or "throttle" in name_low:
+            elif "l2 trigger" in name_low or "lt trigger" in name_low or "left trigger" in name_low or "brake" in name_low or "throttle" in name_low:
                 self._trig_l_axis = code
-            elif "r2 trigger" in name_low or "rt trigger" in name_low or "gas" in name_low:
+            elif "r2 trigger" in name_low or "rt trigger" in name_low or "right trigger" in name_low or "gas" in name_low:
                 self._trig_r_axis = code
 
         # Hardware fallback: if active profile specifies an RS axis the device lacks
@@ -383,11 +383,11 @@ class MainWindow(QMainWindow):
                 desc=btn_desc
             )
 
-            # Bridge digital triggers to trigger gauge bars (e.g. Switch ZL/ZR or GP2040)
+            # Bridge digital triggers to trigger gauge bars (e.g. Switch ZL/ZR or standard LT/RT digital)
             btn_low = btn_name.lower()
-            if "zl" in btn_low or "lt (digital)" in btn_low or "l2 (digital)" in btn_low or "4k" in btn_low:
+            if "zl" in btn_low or "lt" in btn_low or "l2" in btn_low or "4k" in btn_low:
                 self.triggers_analyzer.update_digital_trigger(is_left=True, is_pressed=is_pressed, code=self._trig_l_axis, name=btn_name)
-            elif "zr" in btn_low or "rt (digital)" in btn_low or "r2 (digital)" in btn_low or "3k" in btn_low:
+            elif "zr" in btn_low or "rt" in btn_low or "r2" in btn_low or "3k" in btn_low:
                 self.triggers_analyzer.update_digital_trigger(is_left=False, is_pressed=is_pressed, code=self._trig_r_axis, name=btn_name)
 
         # 3. Absolute axis events (Sticks, Triggers, D-Pad Hat)

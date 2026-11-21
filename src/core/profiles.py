@@ -20,8 +20,42 @@ from .constants import (
 
 # Standard labels per layout profile
 PROFILES: Dict[str, Dict] = {
+    "standard": {
+        "name": "Standard Linux Gamepad (Generic HID / DirectInput)",
+        "buttons": {
+            BTN_SOUTH:   ("A / Cross (✕)", "Action Bottom (South)"),
+            BTN_EAST:    ("B / Circle (◯)", "Action Right (East)"),
+            BTN_C:       ("Button C", "Action Secondary Right (C)"),
+            BTN_NORTH:   ("X / Square (□)", "Action Top / Left (North)"),
+            BTN_WEST:    ("Y / Triangle (△)", "Action Top / Left (West)"),
+            BTN_Z:       ("Button Z", "Action Secondary Top (Z)"),
+            BTN_TL:      ("LB / L1", "Left Shoulder (Bumper)"),
+            BTN_TR:      ("RB / R1", "Right Shoulder (Bumper)"),
+            BTN_TL2:     ("LT / L2 (Digital)", "Left Trigger Click"),
+            BTN_TR2:     ("RT / R2 (Digital)", "Right Trigger Click"),
+            BTN_SELECT:  ("Select / Back / Share", "Select / Back"),
+            BTN_START:   ("Start / Options", "Start / Menu"),
+            BTN_MODE:    ("Mode / Guide / Home", "System Guide / Home"),
+            BTN_THUMBL:  ("L3 / LS Click", "Left Thumbstick Click"),
+            BTN_THUMBR:  ("R3 / RS Click", "Right Thumbstick Click"),
+            BTN_DPAD_UP:    ("D-Pad Up", "Up"),
+            BTN_DPAD_DOWN:  ("D-Pad Down", "Down"),
+            BTN_DPAD_LEFT:  ("D-Pad Left", "Left"),
+            BTN_DPAD_RIGHT: ("D-Pad Right", "Right"),
+        },
+        "axes": {
+            ABS_X:     "Left Stick X",
+            ABS_Y:     "Left Stick Y",
+            ABS_RX:    "Right Stick X",
+            ABS_RY:    "Right Stick Y",
+            ABS_Z:     "Left Trigger (LT / L2)",
+            ABS_RZ:    "Right Trigger (RT / R2)",
+            ABS_HAT0X: "D-Pad X (Hat)",
+            ABS_HAT0Y: "D-Pad Y (Hat)",
+        }
+    },
     "dualsense": {
-        "name": "Sony PlayStation (DualSense / DS4)",
+        "name": "Sony PlayStation (DualSense / DualShock 4)",
         "buttons": {
             BTN_SOUTH:  ("Cross (✕)", "Action Bottom"),
             BTN_EAST:   ("Circle (◯)", "Action Right"),
@@ -85,7 +119,7 @@ PROFILES: Dict[str, Dict] = {
         }
     },
     "ps4": {
-        "name": "Sony PlayStation 4 (Generic / GP2040-CE / Arcade)",
+        "name": "Sony PlayStation 4 (Generic HID / Arcade)",
         "buttons": {
             BTN_SOUTH:   ("Square (□) / 1P", "Action Left (Square)"),
             BTN_EAST:    ("Cross (✕) / 1K", "Action Bottom (Cross)"),
@@ -117,8 +151,43 @@ PROFILES: Dict[str, Dict] = {
             ABS_HAT0Y: "D-Pad Y (Hat)",
         }
     },
+    "fightstick": {
+        "name": "Arcade Fightstick (6/8-Button Layout)",
+        "buttons": {
+            BTN_SOUTH:   ("1K (Cross / B)", "Bottom-1 (Light Kick)"),
+            BTN_EAST:    ("2K (Circle / A)", "Bottom-2 (Medium Kick)"),
+            BTN_C:       ("3K (R2 / ZR)", "Bottom-3 (Heavy Kick)"),
+            BTN_NORTH:   ("1P (Square / Y)", "Top-1 (Light Punch)"),
+            BTN_WEST:    ("2P (Triangle / X)", "Top-2 (Medium Punch)"),
+            BTN_Z:       ("3P (R1 / R)", "Top-3 (Heavy Punch)"),
+            BTN_TL:      ("4P (L1 / L)", "Top-4 (Punch 4 / LB)"),
+            BTN_TR:      ("4K (L2 / ZL)", "Bottom-4 (Kick 4 / LT)"),
+            BTN_TL2:     ("Select / Coin", "Coin / Back"),
+            BTN_TR2:     ("Start", "Start"),
+            BTN_SELECT:  ("Select / Coin", "Coin / Back"),
+            BTN_START:   ("Start", "Start"),
+            BTN_MODE:    ("Home / Guide", "Guide / Home"),
+            BTN_THUMBL:  ("L3 (LS)", "Left Stick Click"),
+            BTN_THUMBR:  ("R3 (RS)", "Right Stick Click"),
+            BTN_CAPTURE: ("Capture", "Capture / Screenshot"),
+            BTN_DPAD_UP:    ("Up / Jump", "Direction Up"),
+            BTN_DPAD_DOWN:  ("Down / Crouch", "Direction Down"),
+            BTN_DPAD_LEFT:  ("Left", "Direction Left"),
+            BTN_DPAD_RIGHT: ("Right", "Direction Right"),
+        },
+        "axes": {
+            ABS_X:     "Stick X",
+            ABS_Y:     "Stick Y",
+            ABS_Z:     "Right Stick X",
+            ABS_RZ:    "Right Stick Y",
+            ABS_RX:    "Right Stick X",
+            ABS_RY:    "Right Stick Y",
+            ABS_HAT0X: "D-Pad X (Hat)",
+            ABS_HAT0Y: "D-Pad Y (Hat)",
+        }
+    },
     "gp2040": {
-        "name": "GP2040-CE Arcade / Fightstick Controller",
+        "name": "Arcade Fightstick (6/8-Button Layout)",
         "buttons": {
             BTN_SOUTH:   ("1K (Cross / B)", "Bottom-1 (Light Kick)"),
             BTN_EAST:    ("2K (Circle / A)", "Bottom-2 (Medium Kick)"),
@@ -153,7 +222,7 @@ PROFILES: Dict[str, Dict] = {
         }
     },
     "switch": {
-        "name": "Nintendo Switch (HORI / Pokken / GP2040-CE)",
+        "name": "Nintendo Switch (Generic HID / Pro)",
         "buttons": {
             BTN_SOUTH:   ("Y / 1P", "Action Left (Y)"),
             BTN_EAST:    ("B / 1K", "Action Bottom (B)"),
@@ -181,8 +250,6 @@ PROFILES: Dict[str, Dict] = {
             ABS_Y:     "Left Stick Y",
             ABS_Z:     "Right Stick X",
             ABS_RZ:    "Right Stick Y",
-            ABS_RX:    "Right Stick X",
-            ABS_RY:    "Right Stick Y",
             ABS_HAT0X: "D-Pad X (Hat)",
             ABS_HAT0Y: "D-Pad Y (Hat)",
         }
@@ -283,79 +350,80 @@ def detect_layout_flavor(
     key_bits: set,
     abs_bits: set,
     vendor_id: Optional[int] = None,
-    product_id: Optional[int] = None
+    product_id: Optional[int] = None,
+    abs_info: Optional[Dict[int, Tuple[int, int]]] = None
 ) -> str:
     """
-    Heuristically determines whether the device is using:
-    - DualSense (PS5) / DS4 (hid-playstation / hid-sony)
-    - Sony PlayStation 4 (Generic / GP2040-CE / Arcade - hid-generic)
-    - GP2040-CE
-    - Xbox (XInput)
-    - Nintendo Switch
-    - Android AOSP HID
+    Heuristically determines the gamepad controller class based on
+    descriptor contents, kernel driver, axis topology, and button capabilities:
+    - Standard Linux Gamepad (Generic HID / DirectInput conforming to gamepad.rst)
+    - Microsoft Xbox (XInput / Series / One / 360)
+    - Sony PlayStation (DualSense / DualShock 4)
+    - Sony PlayStation 4 Generic (Arcade / Generic HID)
+    - Nintendo Switch (Generic HID / Pro)
+    - Android AOSP Gamepad
     - PC DirectInput (Legacy 0x120)
     """
     lower_name = name.lower()
 
-    # 1. GP2040-CE / RP2040 multi-mode checks
-    if "gp2040" in lower_name or "rp2040" in lower_name or "pico" in lower_name:
-        if "ps4" in lower_name:
-            return "ps4"
-        if "switch" in lower_name:
-            return "switch"
-        if "xbox" in lower_name or "xinput" in lower_name:
-            return "xbox"
-        if vendor_id == 0x1532 and product_id == 0x0401:  # Razer Panthera emulation
-            return "ps4"
-        if vendor_id == 0x0F0D and product_id == 0x0092:  # HORI Pokken emulation
-            return "switch"
-        if vendor_id == 0x045E:  # Xbox 360 emulation
-            return "xbox"
+    # 1. Driver / Protocol Hardware Classes:
+    # ----------------------------------------------------
+    # Microsoft Xbox (XInput class)
+    if "xbox" in lower_name or "x-box" in lower_name or "xinput" in lower_name or vendor_id == 0x045E:
+        return "xbox"
 
-    # 2. PS4 generic / arcade sticks
-    if "ps4" in lower_name or "panthera" in lower_name or (vendor_id == 0x1532 and product_id == 0x0401):
-        return "ps4"
+    # Sony PlayStation (DualSense / DualShock under hid-playstation / hid-sony)
+    if "dualsense" in lower_name or "ps5" in lower_name:
+        return "dualsense"
+    if vendor_id == 0x054C or "dualshock" in lower_name or "wireless controller" in lower_name:
+        if not (BTN_C in key_bits and BTN_Z in key_bits):
+            return "dualsense"
 
-    # 3. Nintendo Switch
+    # Nintendo Switch class (hid-nintendo / official / HORI Pokken)
     if "switch" in lower_name or "pokken" in lower_name or "hori" in lower_name:
         if BTN_C in key_bits or "pokken" in lower_name or "hori" in lower_name:
             return "switch"
         return "switch_pro"
 
-    # 4. Sony DualSense / DS4 (hid-playstation / hid-sony)
-    if "dualsense" in lower_name or "ps5" in lower_name:
-        return "dualsense"
-    if "sony" in lower_name or "dualshock" in lower_name or "wireless controller" in lower_name:
-        if BTN_C in key_bits and BTN_Z in key_bits:
-            return "ps4"
-        return "dualsense"
-
-    # 5. Generic GP2040-CE fallback
-    if "gp2040" in lower_name or "rp2040" in lower_name or "pico" in lower_name:
-        return "gp2040"
-
-    # 6. Generic PS4 signature under hid-generic (BTN_C & BTN_Z, ABS_RX & ABS_RY)
-    if BTN_C in key_bits and BTN_Z in key_bits and ABS_RX in abs_bits and ABS_RY in abs_bits:
-        return "ps4"
-
-    # 7. Xbox / XInput
-    if "xbox" in lower_name or "x-box" in lower_name or "microsoft" in lower_name or "xinput" in lower_name:
-        return "xbox"
-
-    # 8. Capability heuristics:
+    # 2. Capability & Topology based Classification:
+    # ----------------------------------------------------
+    # Android AOSP class (Back / Home navigation keys or discrete brake/gas axes)
     has_android_nav = (KEY_BACK in key_bits or KEY_HOMEPAGE in key_bits)
     has_brake_gas = (ABS_BRAKE in abs_bits and ABS_GAS in abs_bits)
+    if has_android_nav or has_brake_gas:
+        return "android"
+
+    # Legacy PC Joystick class (0x120 BTN_JOYSTICK / BTN_TRIGGER)
     has_dinput_btns = (BTN_TRIGGER in key_bits and BTN_THUMB in key_bits)
     has_gamepad_btns = (BTN_SOUTH in key_bits or BTN_EAST in key_bits)
-
-    if has_android_nav or (has_brake_gas and has_gamepad_btns):
-        return "android"
     if has_dinput_btns and not has_gamepad_btns:
         return "dinput_pc"
-    if has_gamepad_btns:
-        return "xbox"
 
-    return "xbox"
+    # PS4 Generic / Arcade Sticks under hid-generic:
+    # Characteristic signature:
+    # - 14 sequential buttons 0x130..0x13D with BTN_C and BTN_Z
+    # - ABS_RX and ABS_RY are triggers (unipolar 0..255 with min==0)
+    # - ABS_Z and ABS_RZ are right stick (bipolar, e.g. center 128)
+    if "ps4" in lower_name or "panthera" in lower_name or (vendor_id == 0x1532 and product_id == 0x0401):
+        return "ps4"
+
+    if (BTN_C in key_bits and BTN_Z in key_bits and
+        ABS_RX in abs_bits and ABS_RY in abs_bits and
+        ABS_Z in abs_bits and ABS_RZ in abs_bits):
+        # Check axis ranges if available:
+        if abs_info:
+            rx_info = abs_info.get(ABS_RX, (-32768, 32767))
+            # If ABS_RX is bipolar (min < 0), it is Right Stick -> Standard Linux Gamepad
+            if rx_info[0] < 0:
+                return "standard"
+            # If ABS_RX is unipolar (0..255), it is PS4 generic layout
+            if rx_info[0] == 0:
+                return "ps4"
+        return "standard"
+
+    # 3. Standard Linux Gamepad (Linux Gamepad Specification - gamepad.rst)
+    # Default standard gamepad layout for all compliant HID gamepads
+    return "standard"
 
 
 def get_button_info(profile_key: str, code: int) -> Tuple[str, str]:

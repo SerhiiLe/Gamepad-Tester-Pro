@@ -39,7 +39,11 @@ class GamepadDevice:
         self._read_abs_info()
 
         # Profile / Layout flavor detection
-        self.layout_flavor = detect_layout_flavor(self.name, self.key_bits, self.abs_bits, self.vendor_id, self.product_id)
+        self.layout_flavor = detect_layout_flavor(
+            self.name, self.key_bits, self.abs_bits,
+            vendor_id=self.vendor_id, product_id=self.product_id,
+            abs_info=self.abs_info
+        )
 
         # Device flags
         lower_name = self.name.lower()
