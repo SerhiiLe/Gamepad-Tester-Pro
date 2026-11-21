@@ -201,9 +201,9 @@ def analyze_authenticity(device_info: Dict[str, Any],
                        if is_en else "Устройство функционирует через совместимый протокол, но имеет отличия от оригинальной платформы Microsoft.")
             is_replica = (vid != 0x045E or not has_ff)
 
-    # Case D: Nintendo Switch Pro
-    elif vid == 0x057E or "switch" in name_l:
-        archetype = "Nintendo Switch Pro Controller"
+    # Case D: Nintendo Switch (HORI / Pokken / Pro)
+    elif vid == 0x057E or "switch" in name_l or "pokken" in name_l or vid == 0x0F0D:
+        archetype = "Nintendo Switch Controller (HORI / Pokken / Pro)"
         if is_en:
             expected_spec = "6-axis IMU gyro/accelerometer, HD Rumble (LRA), NFC, digital triggers ZL/ZR"
             actual_items = [

@@ -461,6 +461,87 @@ class TestGamepadAnalyzers(unittest.TestCase):
         i18n.set_language("RU")
         win.close()
 
+    def test_switch_gp2040_controller(self):
+        """Verifies full support for GP2040-CE in HORI Pokken Nintendo Switch mode."""
+        from src.core.device import GamepadDevice
+        from src.core.profiles import detect_layout_flavor, get_button_info
+        from src.core.constants import (
+            BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z,
+            BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL,
+            ABS_X, ABS_Y, ABS_Z, ABS_RZ, EV_KEY, EV_ABS
+        )
+        from src.core.reader import RawInputEvent
+        from src.ui.main_window import MainWindow
+
+        # 1. Profile detection
+        key_bits = {BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL}
+        abs_bits = {ABS_X, ABS_Y, ABS_Z, ABS_RZ}
+        flavor = detect_layout_flavor("HORI CO.,LTD. POKKEN CONTROLLER", key_bits, abs_bits)
+        self.assertEqual(flavor, "switch")
+
+        # 2. Button mappings: A, B, X, Y, L, R, ZL, ZR
+        btn_y, _ = get_button_info("switch", BTN_SOUTH)
+        btn_b, _ = get_button_info("switch", BTN_EAST)
+        btn_a, _ = get_button_info("switch", BTN_C)
+        btn_x, _ = get_button_info("switch", BTN_NORTH)
+        btn_l, _ = get_button_info("switch", BTN_WEST)
+        btn_r, _ = get_button_info("switch", BTN_Z)
+        btn_zl, _ = get_button_info("switch", BTN_TL)
+        btn_zr, _ = get_button_info("switch", BTN_TR)
+
+        self.assertIn("Y", btn_y)
+        self.assertIn("B", btn_b)
+        self.assertIn("A", btn_a)
+        self.assertIn("X", btn_x)
+        self.assertIn("L", btn_l)
+        self.assertIn("R", btn_r)
+        self.assertIn("ZL", btn_zl)
+        self.assertIn("ZR", btn_zr)
+
+        # 3. MainWindow event handling with 0..255 axes
+        win = MainWindow()
+        mock_dev = GamepadDevice("HORI CO.,LTD. POKKEN CONTROLLER", event_path=None, key_bits=key_bits, abs_bits=abs_bits)
+        mock_dev.abs_info = {
+            ABS_X: (0, 255),
+            ABS_Y: (0, 255),
+            ABS_Z: (0, 255),
+            ABS_RZ: (0, 255)
+        }
+        win.current_device = mock_dev
+        win.current_profile_key = "switch"
+
+        # Apply raw ranges from device
+        win.left_stick_analyzer.set_raw_ranges(0, 255, 0, 255)
+        win.right_stick_analyzer.set_raw_ranges(0, 255, 0, 255)
+
+        # Left stick full right (255)
+        win._on_input_event(RawInputEvent(100.0, EV_ABS, ABS_X, 255))
+        self.assertAlmostEqual(win.left_stick_analyzer.curr_x, 1.0, places=2)
+
+        # Left stick full up (0)
+        win._on_input_event(RawInputEvent(100.1, EV_ABS, ABS_Y, 0))
+        self.assertAlmostEqual(win.left_stick_analyzer.curr_y, 1.0, places=2)
+
+        # Right stick: ABS_Z (Right Stick X) full left (0)
+        win._on_input_event(RawInputEvent(100.2, EV_ABS, ABS_Z, 0))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_x, -1.0, places=2)
+
+        # Right stick: ABS_RZ (Right Stick Y) full down (255)
+        win._on_input_event(RawInputEvent(100.3, EV_ABS, ABS_RZ, 255))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_y, -1.0, places=2)
+
+        # Digital triggers: pressing ZL (BTN_TL) sets left trigger to 100%
+        win._on_input_event(RawInputEvent(100.4, EV_KEY, BTN_TL, 1))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 100.0)
+
+        # Releasing ZL sets left trigger to 0%
+        win._on_input_event(RawInputEvent(100.5, EV_KEY, BTN_TL, 0))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 0.0)
+
+        win.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,10 @@ class GamepadDevice:
         # Vendor and Product IDs
         self.bus, self.vendor_id, self.product_id, self.version = self._read_device_id()
 
+        # ABS axis ranges (min, max)
+        self.abs_info: Dict[int, Tuple[int, int]] = {}
+        self._read_abs_info()
+
         # Profile / Layout flavor detection
         self.layout_flavor = detect_layout_flavor(self.name, self.key_bits, self.abs_bits)
 
@@ -125,6 +129,34 @@ class GamepadDevice:
                         self.has_touchpad = True
                     if 'motion' in lower or 'sensor' in lower or 'gyro' in lower or 'accelerometer' in lower:
                         self.has_motion = True
+
+    def _read_abs_info(self):
+        """Reads min and max ranges for all ABS axes via ioctl or evdev."""
+        if not self.event_path:
+            return
+        try:
+            fd = os.open(self.event_path, os.O_RDONLY | os.O_NONBLOCK)
+            for code in self.abs_bits:
+                buf = bytearray(24)  # struct input_absinfo is 6 x 32-bit ints = 24 bytes
+                fcntl.ioctl(fd, 0x80184540 + code, buf)  # EVIOCGABS(code)
+                val, amin, amax, fuzz, flat, res = struct.unpack('iiiiii', buf)
+                self.abs_info[code] = (amin, amax)
+            os.close(fd)
+        except Exception:
+            try:
+                import evdev
+                dev = evdev.InputDevice(self.event_path)
+                for code, absinfo in dev.capabilities().get(evdev.ecodes.EV_ABS, []):
+                    self.abs_info[code] = (absinfo.min, absinfo.max)
+                dev.close()
+            except Exception:
+                pass
+
+    def get_axis_range(self, code: int, default: Tuple[int, int] = (-32768, 32767)) -> Tuple[int, int]:
+        return self.abs_info.get(code, default)
+
+    def has_axis(self, code: int) -> bool:
+        return code in self.abs_bits
 
     def _read_device_id(self) -> Tuple[int, int, int, int]:
         """Reads Bus, Vendor ID, Product ID, and Version from event node via ioctl."""

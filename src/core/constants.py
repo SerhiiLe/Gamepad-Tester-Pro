@@ -72,6 +72,7 @@ BTN_START      = 0x13B  # Start / Options / Menu
 BTN_MODE       = 0x13C  # PS / Xbox / Home / Guide
 BTN_THUMBL     = 0x13D  # L3 (Left stick click)
 BTN_THUMBR     = 0x13E  # R3 (Right stick click)
+BTN_CAPTURE    = 0x13F  # Switch Capture / Share
 
 # D-Pad discrete buttons
 BTN_DPAD_UP    = 0x220

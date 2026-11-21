@@ -290,6 +290,19 @@ class MainWindow(QMainWindow):
         self.w_snapback_left.clear_plot()
         self.w_snapback_right.clear_plot()
 
+        # Configure physical axis ranges for Left and Right sticks
+        has_rx = dev.has_axis(ABS_RX)
+        rs_x_code = ABS_RX if has_rx else ABS_Z
+        rs_y_code = ABS_RY if has_rx else ABS_RZ
+
+        min_lx, max_lx = dev.get_axis_range(ABS_X, default=(-32768, 32767))
+        min_ly, max_ly = dev.get_axis_range(ABS_Y, default=(-32768, 32767))
+        self.left_stick_analyzer.set_raw_ranges(min_lx, max_lx, min_ly, max_ly)
+
+        min_rx, max_rx = dev.get_axis_range(rs_x_code, default=(-32768, 32767))
+        min_ry, max_ry = dev.get_axis_range(rs_y_code, default=(-32768, 32767))
+        self.right_stick_analyzer.set_raw_ranges(min_rx, max_rx, min_ry, max_ry)
+
         if self.input_reader:
             self.input_reader.stop()
             self.input_reader = None
@@ -319,6 +332,13 @@ class MainWindow(QMainWindow):
                 name=btn_name,
                 desc=btn_desc
             )
+
+            # Bridge digital triggers to trigger gauge bars (e.g. Switch ZL/ZR or GP2040)
+            btn_low = btn_name.lower()
+            if "zl" in btn_low or "lt (digital)" in btn_low or "l2 (digital)" in btn_low or "4k" in btn_low:
+                self.triggers_analyzer.update_digital_trigger(is_left=True, is_pressed=is_pressed)
+            elif "zr" in btn_low or "rt (digital)" in btn_low or "r2 (digital)" in btn_low or "3k" in btn_low:
+                self.triggers_analyzer.update_digital_trigger(is_left=False, is_pressed=is_pressed)
 
         # 3. Absolute axis events (Sticks, Triggers, D-Pad Hat)
         elif event.ev_type == EV_ABS:
@@ -355,17 +375,23 @@ class MainWindow(QMainWindow):
             # Left Stick (X, Y)
             if code == ABS_X:
                 self.left_stick_analyzer.update_axis(code, val, event.timestamp, is_x=True)
+                return
             elif code == ABS_Y:
                 self.left_stick_analyzer.update_axis(code, val, event.timestamp, is_x=False)
+                return
 
-            # Right Stick (RX, RY or legacy Z, RZ for DirectInput)
-            elif code == ABS_RX or (code == ABS_Z and self.current_profile_key == "dinput_pc"):
+            # Right Stick (RX, RY or Z, RZ if mapped to Right Stick)
+            has_rx = self.current_device and self.current_device.has_axis(ABS_RX)
+            is_rs_x = (code == ABS_RX) or (not has_rx and code == ABS_Z and self.current_profile_key in ("switch", "switch_pro", "dinput_pc", "gp2040"))
+            is_rs_y = (code == ABS_RY) or (not has_rx and code == ABS_RZ and self.current_profile_key in ("switch", "switch_pro", "dinput_pc", "gp2040"))
+
+            if is_rs_x:
                 self.right_stick_analyzer.update_axis(code, val, event.timestamp, is_x=True)
-            elif code == ABS_RY or (code == ABS_RZ and self.current_profile_key == "dinput_pc"):
+            elif is_rs_y:
                 self.right_stick_analyzer.update_axis(code, val, event.timestamp, is_x=False)
 
-            # Analog Triggers (L2/R2, LT/RT, BRAKE/GAS)
-            if code in (ABS_BRAKE, ABS_GAS) or (code in (ABS_Z, ABS_RZ) and self.current_profile_key != "dinput_pc"):
+            # Analog Triggers (only if not used for Right Stick!)
+            elif code in (ABS_BRAKE, ABS_GAS) or (code in (ABS_Z, ABS_RZ) and not (is_rs_x or is_rs_y)):
                 trig_name = get_axis_info(self.current_profile_key, code)
                 self.triggers_analyzer.update_trigger(code, val, name=trig_name)
 

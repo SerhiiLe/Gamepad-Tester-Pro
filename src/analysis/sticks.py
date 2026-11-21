@@ -193,6 +193,13 @@ class StickAnalyzer:
         self.circularity_tested = False
         self.gate_shape_detected = "Круглый (с безелем)"
 
+    def set_raw_ranges(self, min_x: int, max_x: int, min_y: int, max_y: int):
+        """Configures physical raw ranges for accurate axis normalization (e.g. 0..255 or -32768..32767)."""
+        self.raw_min_x = min_x
+        self.raw_max_x = max_x
+        self.raw_min_y = min_y
+        self.raw_max_y = max_y
+
     def update_axis(self, axis_code: int, raw_value: int, timestamp: float, is_x: bool):
         """Updates X or Y coordinate and runs stage-gated diagnostics."""
         if is_x:
@@ -275,6 +282,13 @@ class StickAnalyzer:
 
         samples = list(raw_buf)
         total_range = max(samples) - min(samples)
+
+        # Native 8-bit controllers (e.g. 0..255 on Switch or DirectInput)
+        if span <= 256:
+            if total_range >= 15:
+                return 8.0, 1, 256
+            return None
+
         # Stationary rejection: stationary wiper noise has peak-to-peak < 120 (out of 65535)
         if total_range < 120:
             return None
