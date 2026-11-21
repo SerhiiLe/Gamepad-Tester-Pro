@@ -354,14 +354,14 @@ class MainWindow(QMainWindow):
             elif code == ABS_Y:
                 self.left_stick_analyzer.update_axis(code, val, event.timestamp, is_x=False)
 
-            # Right Stick (RX, RY or Z, RZ)
-            elif code in (ABS_RX, ABS_Z) and self.current_profile_key != "dinput_pc":
+            # Right Stick (RX, RY or legacy Z, RZ for DirectInput)
+            elif code == ABS_RX or (code == ABS_Z and self.current_profile_key == "dinput_pc"):
                 self.right_stick_analyzer.update_axis(code, val, event.timestamp, is_x=True)
-            elif code in (ABS_RY, ABS_RZ) and self.current_profile_key != "dinput_pc":
+            elif code == ABS_RY or (code == ABS_RZ and self.current_profile_key == "dinput_pc"):
                 self.right_stick_analyzer.update_axis(code, val, event.timestamp, is_x=False)
 
             # Analog Triggers (L2/R2, LT/RT, BRAKE/GAS)
-            if code in (ABS_BRAKE, ABS_GAS, ABS_Z, ABS_RZ):
+            if code in (ABS_BRAKE, ABS_GAS) or (code in (ABS_Z, ABS_RZ) and self.current_profile_key != "dinput_pc"):
                 trig_name = get_axis_info(self.current_profile_key, code)
                 self.triggers_analyzer.update_trigger(code, val, name=trig_name)
 

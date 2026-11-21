@@ -90,6 +90,7 @@ class TriggerWidget(QWidget):
         l_box.addLayout(col_r)
 
         layout.addWidget(self.box)
+        self.setFixedWidth(115)
 
     def retranslate_ui(self):
         """Retranslates all text elements to active language."""
@@ -99,7 +100,17 @@ class TriggerWidget(QWidget):
 
     def update_values(self):
         """Called periodically by timer to update bars from analyzer state."""
-        l_pct, r_pct = self.analyzer.get_normalized_values()
+        if hasattr(self.analyzer, 'get_normalized_values'):
+            l_pct, r_pct = self.analyzer.get_normalized_values()
+        else:
+            l_pct, r_pct = 0.0, 0.0
+            for code, trig in self.analyzer.triggers.items():
+                pct = trig.curr_value * 100.0
+                name_low = trig.name.lower()
+                if "l2" in name_low or "lt" in name_low or "brake" in name_low or code in (0x02, 0x0A):
+                    l_pct = pct
+                else:
+                    r_pct = pct
 
         self.bar_l.setValue(int(l_pct))
         self.lbl_l_val.setText(f"{int(l_pct)}%")

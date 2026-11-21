@@ -37,6 +37,30 @@ class TriggersAnalyzer:
     def reset(self):
         self.triggers.clear()
 
+    def get_normalized_values(self) -> Tuple[float, float]:
+        """
+        Returns (left_trigger_pct, right_trigger_pct) as floats in range 0.0 .. 100.0.
+        """
+        l_pct = 0.0
+        r_pct = 0.0
+        for code, trig in self.triggers.items():
+            pct = trig.curr_value * 100.0
+            name_low = trig.name.lower()
+            if ("l2" in name_low or "lt" in name_low or "brake" in name_low
+                    or "левый" in name_low or "left" in name_low
+                    or code in (0x02, 0x0A)):  # ABS_Z or ABS_BRAKE
+                l_pct = pct
+            elif ("r2" in name_low or "rt" in name_low or "gas" in name_low
+                  or "правый" in name_low or "right" in name_low
+                  or code in (0x05, 0x09)):  # ABS_RZ or ABS_GAS
+                r_pct = pct
+            else:
+                if l_pct == 0.0:
+                    l_pct = pct
+                else:
+                    r_pct = pct
+        return l_pct, r_pct
+
     def update_trigger(self, code: int, raw_value: int, name: str = "Trigger"):
         if code not in self.triggers:
             # Guess raw range: 0..255 (DirectInput / PS) or 0..1023 (Xbox)

@@ -330,6 +330,33 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertTrue(fb.slider_left.isEnabled())
         self.assertIn("поддерживается", fb.lbl_ff_status.text())
 
+    def test_trigger_analyzer_and_widget(self):
+        """Verifies trigger values normalization and TriggerWidget UI updates."""
+        from src.ui.widgets.trigger_widget import TriggerWidget
+        trig_analyzer = TriggersAnalyzer()
+        w_trig = TriggerWidget(trig_analyzer)
+
+        # Initially 0
+        l_pct, r_pct = trig_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 0.0)
+        self.assertEqual(r_pct, 0.0)
+
+        # Update left trigger (e.g. ABS_Z, raw range 0..255) to 50%
+        trig_analyzer.update_trigger(0x02, 128, name="LT (Левый триггер)")
+        # Update right trigger (e.g. ABS_RZ, raw range 0..255) to 100%
+        trig_analyzer.update_trigger(0x05, 255, name="RT (Правый триггер)")
+
+        l_pct, r_pct = trig_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 50.19, delta=1.0)
+        self.assertAlmostEqual(r_pct, 100.0, delta=1.0)
+
+        # update_values() should run cleanly without AttributeError
+        w_trig.update_values()
+        self.assertEqual(w_trig.bar_l.value(), int(l_pct))
+        self.assertEqual(w_trig.bar_r.value(), int(r_pct))
+        self.assertIn("%", w_trig.lbl_l_val.text())
+        self.assertIn("%", w_trig.lbl_r_val.text())
+
 
 if __name__ == "__main__":
     unittest.main()
