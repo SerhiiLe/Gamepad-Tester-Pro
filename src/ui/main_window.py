@@ -163,6 +163,9 @@ class MainWindow(QMainWindow):
         self.w_report = ReportWidget(self)
         self.tabs.addTab(self.w_report, "📋 Паспорт / Отчёт")
 
+        # Tab navigation listener
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
         # Polling Timer for triggers and battery update (30 FPS)
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self._on_gui_tick)
@@ -170,6 +173,11 @@ class MainWindow(QMainWindow):
 
         # Initial device discovery
         self.rescan_devices()
+
+    def _on_tab_changed(self, index: int):
+        """Called when user switches tabs in main window."""
+        if self.tabs.widget(index) == self.w_feedback:
+            self.w_feedback.auto_select_tab()
 
     def rescan_devices(self):
         """Discovers connected controllers and updates device combo."""
@@ -188,6 +196,7 @@ class MainWindow(QMainWindow):
             self.current_device = None
             self.rumble_controller.set_device(None)
             self.led_controller.set_device(None)
+            self.w_feedback.set_current_device(None)
             return
 
         for idx, dev in enumerate(self.devices):
@@ -204,6 +213,7 @@ class MainWindow(QMainWindow):
         self.current_device = dev
         self.rumble_controller.set_device(dev)
         self.led_controller.set_device(dev)
+        self.w_feedback.set_current_device(dev)
 
         idx = self.combo_profiles.findData(dev.layout_flavor)
         if idx >= 0:

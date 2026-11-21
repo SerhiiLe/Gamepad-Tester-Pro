@@ -1,15 +1,18 @@
 """
 Force Feedback & LED Control Widget
-Provides sliders for vibration intensity and separated controllers
-for Sony DualSense/DS4 RGB Lightbar and Microsoft Xbox Ring of Light patterns.
+Provides sliders for vibration intensity, hardware support detection,
+informative compatibility list, and separated controllers for Sony RGB Lightbar
+and Microsoft Xbox Ring of Light patterns.
 """
 
+from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QSlider, QGroupBox, QComboBox, QTabWidget, QFrame
+    QPushButton, QSlider, QGroupBox, QTabWidget, QFrame
 )
 from PySide6.QtCore import Qt
 
+from ...core.device import GamepadDevice
 from ...feedback.rumble import RumbleController
 from ...feedback.leds import LedController
 
@@ -21,14 +24,24 @@ class FeedbackWidget(QWidget):
         super().__init__(parent)
         self.rumble_ctrl = rumble_ctrl
         self.led_ctrl = led_ctrl
+        self.current_device: Optional[GamepadDevice] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(10)
 
-        # 1. Rumble GroupBox (Force Feedback)
+        # ======================================================================
+        # 1. Rumble GroupBox (Force Feedback / Vibration)
+        # ======================================================================
         grp_rumble = QGroupBox("Тестирование вибромоторов (Force Feedback / Rumble)")
         l_rumble = QVBoxLayout(grp_rumble)
+        l_rumble.setContentsMargins(10, 14, 10, 10)
+        l_rumble.setSpacing(8)
+
+        # Force Feedback Support Status Banner
+        self.lbl_ff_status = QLabel()
+        self.lbl_ff_status.setWordWrap(True)
+        l_rumble.addWidget(self.lbl_ff_status)
 
         # Left Motor (Heavy / Low Freq)
         row_left = QHBoxLayout()
@@ -62,42 +75,129 @@ class FeedbackWidget(QWidget):
 
         # Pulse Buttons
         btn_box = QHBoxLayout()
-        btn_pulse_l = QPushButton("🔴 Импульс Левый (1с)")
-        btn_pulse_l.setMinimumWidth(170)
-        btn_pulse_l.clicked.connect(self._pulse_left)
-        btn_box.addWidget(btn_pulse_l)
+        self.btn_pulse_l = QPushButton("🔴 Импульс Левый (1с)")
+        self.btn_pulse_l.setMinimumWidth(170)
+        self.btn_pulse_l.clicked.connect(self._pulse_left)
+        btn_box.addWidget(self.btn_pulse_l)
 
-        btn_pulse_r = QPushButton("🔵 Импульс Правый (1с)")
-        btn_pulse_r.setMinimumWidth(170)
-        btn_pulse_r.clicked.connect(self._pulse_right)
-        btn_box.addWidget(btn_pulse_r)
+        self.btn_pulse_r = QPushButton("🔵 Импульс Правый (1с)")
+        self.btn_pulse_r.setMinimumWidth(170)
+        self.btn_pulse_r.clicked.connect(self._pulse_right)
+        btn_box.addWidget(self.btn_pulse_r)
 
-        btn_pulse_both = QPushButton("🟣 Импульс Оба (1с)")
-        btn_pulse_both.setMinimumWidth(170)
-        btn_pulse_both.clicked.connect(self._pulse_both)
-        btn_box.addWidget(btn_pulse_both)
+        self.btn_pulse_both = QPushButton("🟣 Импульс Оба (1с)")
+        self.btn_pulse_both.setMinimumWidth(170)
+        self.btn_pulse_both.clicked.connect(self._pulse_both)
+        btn_box.addWidget(self.btn_pulse_both)
 
-        btn_stop = QPushButton("⏹ Стоп")
-        btn_stop.setMinimumWidth(100)
-        btn_stop.setObjectName("btn_danger")
-        btn_stop.clicked.connect(self.rumble_ctrl.stop)
-        btn_box.addWidget(btn_stop)
+        self.btn_stop = QPushButton("⏹ Стоп")
+        self.btn_stop.setMinimumWidth(100)
+        self.btn_stop.setObjectName("btn_danger")
+        self.btn_stop.clicked.connect(self.rumble_ctrl.stop)
+        btn_box.addWidget(self.btn_stop)
         l_rumble.addLayout(btn_box)
 
-        layout.addWidget(grp_rumble)
+        layout.addWidget(grp_rumble, stretch=0)
 
-        # 2. Separated LED Controls (Sony vs Xbox tabs)
+        # ======================================================================
+        # 2. Separated LED Controls (3 Tabs: Info, Sony, Xbox)
+        # ======================================================================
         grp_led = QGroupBox("Управление индикацией и светодиодами (Раздельные команды)")
         l_led = QVBoxLayout(grp_led)
+        l_led.setContentsMargins(10, 14, 10, 10)
+        l_led.setSpacing(6)
 
         self.led_tabs = QTabWidget()
 
-        # Tab: Sony PlayStation
+        # ----------------------------------------------------------------------
+        # Tab 0: Information & Hardware Compatibility
+        # ----------------------------------------------------------------------
+        tab_info = QWidget()
+        l_info = QVBoxLayout(tab_info)
+        l_info.setContentsMargins(12, 12, 12, 12)
+        l_info.setSpacing(10)
+
+        lbl_info_title = QLabel("<b>Аппаратная поддержка световой индикации и подсветки в Linux</b>")
+        lbl_info_title.setStyleSheet("font-size: 14px; color: #38BDF8; font-weight: bold;")
+        l_info.addWidget(lbl_info_title)
+
+        lbl_info_desc = QLabel(
+            "В отличие от стандартных кнопок и осей, прямое программное управление светодиодами геймпада "
+            "не стандартизировано в базовом USB HID и поддерживается ядром Linux только для специализированных "
+            "фирменных платформ со специфическими системными драйверами:"
+        )
+        lbl_info_desc.setWordWrap(True)
+        lbl_info_desc.setStyleSheet("color: #E2E8F0; font-size: 12px; line-height: 1.4;")
+        l_info.addWidget(lbl_info_desc)
+
+        # Sony Card
+        card_sony = QFrame()
+        card_sony.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 6px;")
+        l_card_s = QVBoxLayout(card_sony)
+        l_card_s.setContentsMargins(10, 8, 10, 8)
+        l_card_s.setSpacing(4)
+        lbl_s_head = QLabel("🎮 <b>Sony PlayStation — Полноцветный RGB Lightbar</b>")
+        lbl_s_head.setStyleSheet("color: #38BDF8; font-size: 13px;")
+        l_card_s.addWidget(lbl_s_head)
+        lbl_s_text = QLabel(
+            "• <b>DualSense (PS5):</b> Индивидуальная RGB-подсветка контура тачпада и индикация игрока (драйвер <code>hid-playstation</code>).<br>"
+            "• <b>DualShock 4 (PS4):</b> Световая полоса RGB Lightbar (драйвер <code>hid-sony</code> или <code>hid-playstation</code>)."
+        )
+        lbl_s_text.setWordWrap(True)
+        lbl_s_text.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        l_card_s.addWidget(lbl_s_text)
+        l_info.addWidget(card_sony)
+
+        # Xbox Card
+        card_xbox = QFrame()
+        card_xbox.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 6px;")
+        l_card_x = QVBoxLayout(card_xbox)
+        l_card_x.setContentsMargins(10, 8, 10, 8)
+        l_card_x.setSpacing(4)
+        lbl_x_head = QLabel("🎮 <b>Microsoft Xbox — Светодиодное кольцо (Ring of Light)</b>")
+        lbl_x_head.setStyleSheet("color: #10B981; font-size: 13px;")
+        l_card_x.addWidget(lbl_x_head)
+        lbl_x_text = QLabel(
+            "• <b>Xbox 360 Controller (проводные и беспроводные с ресивером):</b> 4-сегментное кольцо квадрантов игроков и анимации (вращение, мигание, чередование) через драйвер <code>xpad</code> в sysfs.<br>"
+            "<i>Примечание:</i> На геймпадах Xbox One / Series кнопка Xbox светится статично и программно не управляется через открытый драйвер."
+        )
+        lbl_x_text.setWordWrap(True)
+        lbl_x_text.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        l_card_x.addWidget(lbl_x_text)
+        l_info.addWidget(card_xbox)
+
+        # Other Controllers Card
+        card_other = QFrame()
+        card_other.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 6px;")
+        l_card_o = QVBoxLayout(card_other)
+        l_card_o.setContentsMargins(10, 8, 10, 8)
+        l_card_o.setSpacing(4)
+        lbl_o_head = QLabel("❌ <b>Остальные контроллеры (Не поддерживаются ОС)</b>")
+        lbl_o_head.setStyleSheet("color: #F59E0B; font-size: 13px;")
+        l_card_o.addWidget(lbl_o_head)
+        lbl_o_text = QLabel(
+            "• <b>Nintendo Switch Pro:</b> Кольцо подсветки кнопки Home требует закрытых вендорных субкоманд.<br>"
+            "• <b>Сторонние геймпады (Flydigi, 8BitDo, Gamesir, Defender, реплики):</b> Декоративная подсветка управляется встроенным микроконтроллером автономно (комбинациями кнопок на корпусе) и не имеет программного API в ОС.<br>"
+            "• <b>Стандартные DInput / Generic USB геймпады:</b> Программное управление светодиодами отсутствует в HID-дескрипторе."
+        )
+        lbl_o_text.setWordWrap(True)
+        lbl_o_text.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        l_card_o.addWidget(lbl_o_text)
+        l_info.addWidget(card_other)
+
+        l_info.addStretch(1)
+        self.led_tabs.addTab(tab_info, "ℹ️ О технологии и совместимости")
+
+        # ----------------------------------------------------------------------
+        # Tab 1: Sony PlayStation (DualSense / DS4)
+        # ----------------------------------------------------------------------
         tab_sony = QWidget()
         l_sony = QVBoxLayout(tab_sony)
+        l_sony.setContentsMargins(10, 10, 10, 10)
+        l_sony.setSpacing(10)
 
         lbl_sony_desc = QLabel("<b>Подсветка Sony DualSense (PS5) & DualShock 4 (PS4) Lightbar:</b>")
-        lbl_sony_desc.setStyleSheet("color: #38BDF8;")
+        lbl_sony_desc.setStyleSheet("color: #38BDF8; font-size: 13px;")
         l_sony.addWidget(lbl_sony_desc)
 
         # Presets row
@@ -149,14 +249,19 @@ class FeedbackWidget(QWidget):
         row_rgb.addWidget(btn_apply_rgb)
 
         l_sony.addLayout(row_rgb)
+        l_sony.addStretch(1)
         self.led_tabs.addTab(tab_sony, "🎮 Sony PlayStation (RGB Lightbar)")
 
-        # Tab: Microsoft Xbox
+        # ----------------------------------------------------------------------
+        # Tab 2: Microsoft Xbox (Xbox 360 Ring of Light)
+        # ----------------------------------------------------------------------
         tab_xbox = QWidget()
         l_xbox = QVBoxLayout(tab_xbox)
+        l_xbox.setContentsMargins(10, 10, 10, 10)
+        l_xbox.setSpacing(10)
 
         lbl_xbox_desc = QLabel("<b>Светодиодное кольцо Microsoft Xbox 360 (Ring of Light):</b>")
-        lbl_xbox_desc.setStyleSheet("color: #10B981;")
+        lbl_xbox_desc.setStyleSheet("color: #10B981; font-size: 13px;")
         l_xbox.addWidget(lbl_xbox_desc)
 
         # Player shortcuts
@@ -179,22 +284,95 @@ class FeedbackWidget(QWidget):
             row_patterns.addWidget(btn)
         l_xbox.addLayout(row_patterns)
 
-        # Elevated privileges notice
+        # Elevated privileges notice (Generously sized, dynamic layout)
         self.lbl_xbox_status = QLabel(
-            "⚠️ <b>Внимание (Права доступа):</b> Управление кольцом светодиодов xpad осуществляется через системный узел sysfs "
-            "(<code>/sys/class/leds/xpad*/brightness</code>). В Linux для записи в этот узел по умолчанию требуются <b>повышенные права (root)</b>.<br>"
-            "Если контроллер не реагирует на команды, запустите утилиту с <code>sudo</code>, либо разрешите запись командой:<br>"
-            "<code>sudo chmod 666 /sys/class/leds/xpad*/brightness</code>"
+            "⚠️ <b>Внимание (Права доступа в Linux):</b> Управление кольцом светодиодов xpad осуществляется через системный узел sysfs "
+            "(<code>/sys/class/leds/xpad*/brightness</code>). В Linux для записи в этот узел по умолчанию требуются <b>повышенные права (root)</b>.<br><br>"
+            "Если контроллер не реагирует на команды переключения квадрантов или анимаций:<br>"
+            "• Запустите утилиту с <code>sudo</code>, либо<br>"
+            "• Разрешите однократно запись командой в терминале:<br>"
+            "&nbsp;&nbsp;&nbsp;&nbsp;<code>sudo chmod 666 /sys/class/leds/xpad*/brightness</code><br>"
+            "• Либо создайте постоянное udev-правило для доступа без root."
         )
         self.lbl_xbox_status.setWordWrap(True)
-        self.lbl_xbox_status.setStyleSheet("font-size: 11px; color: #F59E0B; background-color: #1E293B; border: 1px solid #334155; border-radius: 4px; padding: 6px;")
+        self.lbl_xbox_status.setStyleSheet(
+            "font-size: 11px; color: #F59E0B; background-color: #1E293B; "
+            "border: 1px solid #334155; border-radius: 6px; padding: 10px 12px; line-height: 1.4;"
+        )
         l_xbox.addWidget(self.lbl_xbox_status)
+        l_xbox.addStretch(1)
 
         self.led_tabs.addTab(tab_xbox, "🎮 Microsoft Xbox (Ring of Light)")
 
         l_led.addWidget(self.led_tabs)
-        layout.addWidget(grp_led)
-        layout.addStretch(1)
+        layout.addWidget(grp_led, stretch=1)
+
+        # Initialize rumble state
+        self._update_rumble_support()
+
+    def set_current_device(self, device: Optional[GamepadDevice]):
+        """Sets active device and updates hardware support status."""
+        self.current_device = device
+        self.rumble_ctrl.set_device(device)
+        self.led_ctrl.set_device(device)
+        self._update_rumble_support()
+        if self.isVisible():
+            self.auto_select_tab()
+
+    def auto_select_tab(self):
+        """Automatically selects appropriate LED subtab based on connected controller."""
+        if not self.current_device:
+            self.led_tabs.setCurrentIndex(0)
+            return
+
+        dev = self.current_device
+        # 1. Sony (DualSense or DualShock 4)
+        if (dev.is_dualsense or dev.is_ds4 or dev.vendor_id == 0x054C or
+                dev.layout_flavor in ("dualsense", "ds4")):
+            self.led_tabs.setCurrentIndex(1)
+        # 2. Xbox (Xbox 360 with Ring of Light or sysfs LED)
+        elif (dev.is_xbox or dev.vendor_id == 0x045E or
+              "xbox" in dev.name.lower() or "x-box" in dev.name.lower() or
+              bool(dev.sysfs_led_path) or dev.layout_flavor == "xbox"):
+            self.led_tabs.setCurrentIndex(2)
+        # 3. Any other controller (Generic, Switch Pro, etc.)
+        else:
+            self.led_tabs.setCurrentIndex(0)
+
+    def _update_rumble_support(self):
+        """Checks if current device supports Force Feedback and updates UI."""
+        has_ff = bool(self.current_device and getattr(self.current_device, 'has_ff', False))
+
+        self.slider_left.setEnabled(has_ff)
+        self.slider_right.setEnabled(has_ff)
+        self.btn_pulse_l.setEnabled(has_ff)
+        self.btn_pulse_r.setEnabled(has_ff)
+        self.btn_pulse_both.setEnabled(has_ff)
+        self.btn_stop.setEnabled(has_ff)
+
+        if not self.current_device:
+            self.lbl_ff_status.setText(
+                "⚠️ <b>Контроллер не выбран:</b> Подключите игровой контроллер для тестирования вибромоторов."
+            )
+            self.lbl_ff_status.setStyleSheet(
+                "background-color: #1E293B; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; color: #94A3B8; font-size: 12px;"
+            )
+        elif not has_ff:
+            self.lbl_ff_status.setText(
+                "⚠️ <b>Внимание:</b> Подключенное устройство не поддерживает аппаратную обратную связь "
+                "(Force Feedback / виброотклик отсутствует в дескрипторе HID). Команды вибрации недоступны."
+            )
+            self.lbl_ff_status.setStyleSheet(
+                "background-color: #2D1515; border: 1px solid #7F1D1D; border-radius: 6px; padding: 8px 12px; color: #FCA5A5; font-size: 12px;"
+            )
+        else:
+            self.lbl_ff_status.setText(
+                "✅ <b>Обратная связь поддерживается:</b> Обнаружен активный драйвер виброотклика (EV_FF / Force Feedback). "
+                "Вы можете протестировать раздельно левый (тяжёлый/НЧ) и правый (лёгкий/ВЧ) вибромоторы."
+            )
+            self.lbl_ff_status.setStyleSheet(
+                "background-color: #0E291E; border: 1px solid #065F46; border-radius: 6px; padding: 6px 12px; color: #6EE7B7; font-size: 12px;"
+            )
 
     def _send_xbox_pattern(self, pid: int):
         ok, msg = self.led_ctrl.set_xpad_pattern(pid)

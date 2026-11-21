@@ -274,6 +274,62 @@ class TestGamepadAnalyzers(unittest.TestCase):
         span_ms = (hist[-1][0] - hist[0][0]) * 1000.0
         self.assertAlmostEqual(span_ms, 49.0, delta=2.0)
 
+    def test_feedback_widget_and_support(self):
+        """Verifies Force Feedback support status detection and automatic LED subtab selection."""
+        import os
+        from PySide6.QtWidgets import QApplication
+        from src.ui.widgets.feedback_widget import FeedbackWidget
+        from src.feedback.rumble import RumbleController
+        from src.feedback.leds import LedController
+
+        class MockDev:
+            def __init__(self, name="Mock", vid=0x045E, pid=0x028E, has_ff=True, flavor="xbox"):
+                self.name = name
+                self.vendor_id = vid
+                self.product_id = pid
+                self.has_ff = has_ff
+                self.layout_flavor = flavor
+                self.is_dualsense = ("dualsense" in name.lower() or (vid == 0x054C and pid == 0x0CE6))
+                self.is_ds4 = ("dualshock" in name.lower() or (vid == 0x054C and pid == 0x05C4))
+                self.is_xbox = ("xbox" in name.lower() or vid == 0x045E)
+                self.sysfs_led_path = "/sys/class/leds/xpad0" if self.is_xbox else None
+
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        app = QApplication.instance() or QApplication([])
+
+        fb = FeedbackWidget(RumbleController(), LedController())
+
+        # Case 1: No device
+        fb.set_current_device(None)
+        fb.auto_select_tab()
+        self.assertEqual(fb.led_tabs.currentIndex(), 0)
+        self.assertFalse(fb.slider_left.isEnabled())
+        self.assertIn("не выбран", fb.lbl_ff_status.text())
+
+        # Case 2: Device without Force Feedback
+        dev_no_ff = MockDev("Generic Gamepad", vid=0x1111, pid=0x2222, has_ff=False, flavor="generic")
+        fb.set_current_device(dev_no_ff)
+        fb.auto_select_tab()
+        self.assertEqual(fb.led_tabs.currentIndex(), 0)
+        self.assertFalse(fb.slider_left.isEnabled())
+        self.assertIn("не поддерживает", fb.lbl_ff_status.text())
+
+        # Case 3: Sony DualSense with Force Feedback
+        dev_sony = MockDev("Sony DualSense Controller", vid=0x054C, pid=0x0CE6, has_ff=True, flavor="dualsense")
+        fb.set_current_device(dev_sony)
+        fb.auto_select_tab()
+        self.assertEqual(fb.led_tabs.currentIndex(), 1)
+        self.assertTrue(fb.slider_left.isEnabled())
+        self.assertIn("поддерживается", fb.lbl_ff_status.text())
+
+        # Case 4: Microsoft Xbox 360 with Force Feedback
+        dev_xbox = MockDev("Microsoft X-Box 360 pad", vid=0x045E, pid=0x028E, has_ff=True, flavor="xbox")
+        fb.set_current_device(dev_xbox)
+        fb.auto_select_tab()
+        self.assertEqual(fb.led_tabs.currentIndex(), 2)
+        self.assertTrue(fb.slider_left.isEnabled())
+        self.assertIn("поддерживается", fb.lbl_ff_status.text())
+
 
 if __name__ == "__main__":
     unittest.main()

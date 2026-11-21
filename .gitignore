@@ -51,3 +51,6 @@ htmlcov/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# PDF
+*.pdf
