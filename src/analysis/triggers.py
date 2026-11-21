@@ -48,11 +48,11 @@ class TriggersAnalyzer:
             name_low = trig.name.lower()
             if ("l2" in name_low or "lt" in name_low or "brake" in name_low
                     or "zl" in name_low or "левый" in name_low or "left" in name_low
-                    or code in (0x02, 0x0A)):  # ABS_Z or ABS_BRAKE
+                    or code in (0x02, 0x03, 0x0A)):  # ABS_Z, ABS_RX (PS4), or ABS_BRAKE
                 l_pct = pct
             elif ("r2" in name_low or "rt" in name_low or "gas" in name_low
                   or "zr" in name_low or "правый" in name_low or "right" in name_low
-                  or code in (0x05, 0x09)):  # ABS_RZ or ABS_GAS
+                  or code in (0x04, 0x05, 0x09)):  # ABS_RY (PS4), ABS_RZ, or ABS_GAS
                 r_pct = pct
             else:
                 if l_pct == 0.0:
@@ -61,10 +61,13 @@ class TriggersAnalyzer:
                     r_pct = pct
         return l_pct, r_pct
 
-    def update_digital_trigger(self, is_left: bool, is_pressed: bool):
+    def update_digital_trigger(self, is_left: bool, is_pressed: bool,
+                               code: Optional[int] = None, name: Optional[str] = None):
         """Allows digital triggers/bumpers (e.g. Switch ZL/ZR or GP2040) to animate trigger bars."""
-        code = 0x02 if is_left else 0x05
-        name = "LT (ZL)" if is_left else "RT (ZR)"
+        if code is None:
+            code = 0x02 if is_left else 0x05
+        if name is None:
+            name = "LT (ZL)" if is_left else "RT (ZR)"
         val = 255 if is_pressed else 0
         self.update_trigger(code, val, name=name)
 

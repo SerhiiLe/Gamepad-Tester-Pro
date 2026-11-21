@@ -84,6 +84,39 @@ PROFILES: Dict[str, Dict] = {
             ABS_HAT0Y: "D-Pad Y (Hat)",
         }
     },
+    "ps4": {
+        "name": "Sony PlayStation 4 (Generic / GP2040-CE / Arcade)",
+        "buttons": {
+            BTN_SOUTH:   ("Square (□) / 1P", "Action Left (Square)"),
+            BTN_EAST:    ("Cross (✕) / 1K", "Action Bottom (Cross)"),
+            BTN_C:       ("Circle (◯) / 2K", "Action Right (Circle)"),
+            BTN_NORTH:   ("Triangle (△) / 2P", "Action Top (Triangle)"),
+            BTN_WEST:    ("L1 / 4P", "Left Bumper (L1)"),
+            BTN_Z:       ("R1 / 3P", "Right Bumper (R1)"),
+            BTN_TL:      ("L2 (Digital) / 4K", "Left Trigger (L2)"),
+            BTN_TR:      ("R2 (Digital) / 3K", "Right Trigger (R2)"),
+            BTN_TL2:     ("Share", "Share / Create"),
+            BTN_TR2:     ("Options", "Options / Start"),
+            BTN_SELECT:  ("L3", "Left Stick Click (L3)"),
+            BTN_START:   ("R3", "Right Stick Click (R3)"),
+            BTN_MODE:    ("PS Button", "Home / Guide"),
+            BTN_THUMBL:  ("Touchpad", "Touchpad Button Click"),
+            BTN_DPAD_UP:    ("D-Pad Up", "Up"),
+            BTN_DPAD_DOWN:  ("D-Pad Down", "Down"),
+            BTN_DPAD_LEFT:  ("D-Pad Left", "Left"),
+            BTN_DPAD_RIGHT: ("D-Pad Right", "Right"),
+        },
+        "axes": {
+            ABS_X:     "Left Stick X",
+            ABS_Y:     "Left Stick Y",
+            ABS_Z:     "Right Stick X",
+            ABS_RZ:    "Right Stick Y",
+            ABS_RX:    "L2 Trigger (Analog)",
+            ABS_RY:    "R2 Trigger (Analog)",
+            ABS_HAT0X: "D-Pad X (Hat)",
+            ABS_HAT0Y: "D-Pad Y (Hat)",
+        }
+    },
     "gp2040": {
         "name": "GP2040-CE Arcade / Fightstick Controller",
         "buttons": {
@@ -245,10 +278,17 @@ PROFILES: Dict[str, Dict] = {
 }
 
 
-def detect_layout_flavor(name: str, key_bits: set, abs_bits: set) -> str:
+def detect_layout_flavor(
+    name: str,
+    key_bits: set,
+    abs_bits: set,
+    vendor_id: Optional[int] = None,
+    product_id: Optional[int] = None
+) -> str:
     """
     Heuristically determines whether the device is using:
-    - DualSense (PS5) / DS4
+    - DualSense (PS5) / DS4 (hid-playstation / hid-sony)
+    - Sony PlayStation 4 (Generic / GP2040-CE / Arcade - hid-generic)
     - GP2040-CE
     - Xbox (XInput)
     - Nintendo Switch
@@ -257,20 +297,52 @@ def detect_layout_flavor(name: str, key_bits: set, abs_bits: set) -> str:
     """
     lower_name = name.lower()
 
-    if "dualsense" in lower_name or "ps5" in lower_name:
-        return "dualsense"
-    if "sony" in lower_name or "dualshock" in lower_name or "wireless controller" in lower_name:
-        return "dualsense"
+    # 1. GP2040-CE / RP2040 multi-mode checks
     if "gp2040" in lower_name or "rp2040" in lower_name or "pico" in lower_name:
-        return "gp2040"
+        if "ps4" in lower_name:
+            return "ps4"
+        if "switch" in lower_name:
+            return "switch"
+        if "xbox" in lower_name or "xinput" in lower_name:
+            return "xbox"
+        if vendor_id == 0x1532 and product_id == 0x0401:  # Razer Panthera emulation
+            return "ps4"
+        if vendor_id == 0x0F0D and product_id == 0x0092:  # HORI Pokken emulation
+            return "switch"
+        if vendor_id == 0x045E:  # Xbox 360 emulation
+            return "xbox"
+
+    # 2. PS4 generic / arcade sticks
+    if "ps4" in lower_name or "panthera" in lower_name or (vendor_id == 0x1532 and product_id == 0x0401):
+        return "ps4"
+
+    # 3. Nintendo Switch
     if "switch" in lower_name or "pokken" in lower_name or "hori" in lower_name:
         if BTN_C in key_bits or "pokken" in lower_name or "hori" in lower_name:
             return "switch"
         return "switch_pro"
+
+    # 4. Sony DualSense / DS4 (hid-playstation / hid-sony)
+    if "dualsense" in lower_name or "ps5" in lower_name:
+        return "dualsense"
+    if "sony" in lower_name or "dualshock" in lower_name or "wireless controller" in lower_name:
+        if BTN_C in key_bits and BTN_Z in key_bits:
+            return "ps4"
+        return "dualsense"
+
+    # 5. Generic GP2040-CE fallback
+    if "gp2040" in lower_name or "rp2040" in lower_name or "pico" in lower_name:
+        return "gp2040"
+
+    # 6. Generic PS4 signature under hid-generic (BTN_C & BTN_Z, ABS_RX & ABS_RY)
+    if BTN_C in key_bits and BTN_Z in key_bits and ABS_RX in abs_bits and ABS_RY in abs_bits:
+        return "ps4"
+
+    # 7. Xbox / XInput
     if "xbox" in lower_name or "x-box" in lower_name or "microsoft" in lower_name or "xinput" in lower_name:
         return "xbox"
 
-    # Capability heuristics:
+    # 8. Capability heuristics:
     has_android_nav = (KEY_BACK in key_bits or KEY_HOMEPAGE in key_bits)
     has_brake_gas = (ABS_BRAKE in abs_bits and ABS_GAS in abs_bits)
     has_dinput_btns = (BTN_TRIGGER in key_bits and BTN_THUMB in key_bits)

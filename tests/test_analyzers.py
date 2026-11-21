@@ -542,6 +542,116 @@ class TestGamepadAnalyzers(unittest.TestCase):
 
         win.close()
 
+    def test_ps4_gp2040_controller(self):
+        """Verifies full support for GP2040-CE in Sony PS4 mode (Razer Panthera emulation)."""
+        from src.core.device import GamepadDevice
+        from src.core.profiles import detect_layout_flavor, get_button_info
+        from src.core.constants import (
+            BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z,
+            BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL,
+            ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ, EV_KEY, EV_ABS
+        )
+        from src.core.reader import RawInputEvent
+        from src.ui.main_window import MainWindow
+
+        # 1. Profile detection by name and VID/PID
+        key_bits = {BTN_SOUTH, BTN_EAST, BTN_C, BTN_NORTH, BTN_WEST, BTN_Z, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2, BTN_SELECT, BTN_START, BTN_MODE, BTN_THUMBL}
+        abs_bits = {ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ}
+        flavor = detect_layout_flavor("Open Stick Community GP2040-CE (PS4)", key_bits, abs_bits, 0x1532, 0x0401)
+        self.assertEqual(flavor, "ps4")
+
+        # 2. Button mappings: Square, Cross, Circle, Triangle, L1, R1, L2, R2, Share, Options, L3, R3, PS, Touchpad
+        btn_sq, _ = get_button_info("ps4", BTN_SOUTH)
+        btn_cr, _ = get_button_info("ps4", BTN_EAST)
+        btn_ci, _ = get_button_info("ps4", BTN_C)
+        btn_tr, _ = get_button_info("ps4", BTN_NORTH)
+        btn_l1, _ = get_button_info("ps4", BTN_WEST)
+        btn_r1, _ = get_button_info("ps4", BTN_Z)
+        btn_l2, _ = get_button_info("ps4", BTN_TL)
+        btn_r2, _ = get_button_info("ps4", BTN_TR)
+        btn_sh, _ = get_button_info("ps4", BTN_TL2)
+        btn_op, _ = get_button_info("ps4", BTN_TR2)
+        btn_l3, _ = get_button_info("ps4", BTN_SELECT)
+        btn_r3, _ = get_button_info("ps4", BTN_START)
+        btn_ps, _ = get_button_info("ps4", BTN_MODE)
+        btn_tp, _ = get_button_info("ps4", BTN_THUMBL)
+
+        self.assertIn("Square", btn_sq)
+        self.assertIn("Cross", btn_cr)
+        self.assertIn("Circle", btn_ci)
+        self.assertIn("Triangle", btn_tr)
+        self.assertIn("L1", btn_l1)
+        self.assertIn("R1", btn_r1)
+        self.assertIn("L2", btn_l2)
+        self.assertIn("R2", btn_r2)
+        self.assertIn("Share", btn_sh)
+        self.assertIn("Options", btn_op)
+        self.assertIn("L3", btn_l3)
+        self.assertIn("R3", btn_r3)
+        self.assertIn("PS", btn_ps)
+        self.assertIn("Touchpad", btn_tp)
+
+        # 3. MainWindow event handling with 0..255 axes
+        win = MainWindow()
+        mock_dev = GamepadDevice("Open Stick Community GP2040-CE (PS4)", event_path=None, key_bits=key_bits, abs_bits=abs_bits)
+        mock_dev.abs_info = {
+            ABS_X: (0, 255),
+            ABS_Y: (0, 255),
+            ABS_Z: (0, 255),
+            ABS_RX: (0, 255),
+            ABS_RY: (0, 255),
+            ABS_RZ: (0, 255),
+        }
+        win.current_device = mock_dev
+        win.current_profile_key = "ps4"
+        win._update_axis_mappings()
+
+        # Left stick: ABS_X full right (255)
+        win._on_input_event(RawInputEvent(100.0, EV_ABS, ABS_X, 255))
+        self.assertAlmostEqual(win.left_stick_analyzer.curr_x, 1.0, places=2)
+
+        # Left stick: ABS_Y full up (0)
+        win._on_input_event(RawInputEvent(100.1, EV_ABS, ABS_Y, 0))
+        self.assertAlmostEqual(win.left_stick_analyzer.curr_y, 1.0, places=2)
+
+        # Right stick: ABS_Z (Right Stick X) full left (0)
+        win._on_input_event(RawInputEvent(100.2, EV_ABS, ABS_Z, 0))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_x, -1.0, places=2)
+
+        # Right stick: ABS_RZ (Right Stick Y) full down (255)
+        win._on_input_event(RawInputEvent(100.3, EV_ABS, ABS_RZ, 255))
+        self.assertAlmostEqual(win.right_stick_analyzer.curr_y, -1.0, places=2)
+
+        # Analog triggers: ABS_RX (L2) full press (255)
+        win._on_input_event(RawInputEvent(100.4, EV_ABS, ABS_RX, 255))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 100.0, places=1)
+        self.assertEqual(r_pct, 0.0)
+
+        # Analog triggers: ABS_RY (R2) full press (255)
+        win._on_input_event(RawInputEvent(100.5, EV_ABS, ABS_RY, 255))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 100.0, places=1)
+        self.assertAlmostEqual(r_pct, 100.0, places=1)
+
+        # Release triggers
+        win._on_input_event(RawInputEvent(100.6, EV_ABS, ABS_RX, 0))
+        win._on_input_event(RawInputEvent(100.7, EV_ABS, ABS_RY, 0))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertAlmostEqual(l_pct, 0.0, places=1)
+        self.assertAlmostEqual(r_pct, 0.0, places=1)
+
+        # Digital triggers: BTN_TL (L2) and BTN_TR (R2)
+        win._on_input_event(RawInputEvent(100.8, EV_KEY, BTN_TL, 1))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 100.0)
+
+        win._on_input_event(RawInputEvent(100.9, EV_KEY, BTN_TL, 0))
+        l_pct, r_pct = win.triggers_analyzer.get_normalized_values()
+        self.assertEqual(l_pct, 0.0)
+
+        win.close()
+
 
 if __name__ == "__main__":
     unittest.main()
