@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QTimer
 import pyqtgraph as pg
 
 from ...analysis.polling import PollingAnalyzer
+from ...i18n import tr, i18n
 
 
 class PollingWidget(QWidget):
@@ -23,23 +24,23 @@ class PollingWidget(QWidget):
         layout.setSpacing(8)
 
         header = QHBoxLayout()
-        lbl = QLabel("<b>Частота опроса (Polling Rate) и стабильность шины</b>")
-        lbl.setStyleSheet("color: #38BDF8; font-size: 13px;")
-        header.addWidget(lbl)
+        self.lbl_title = QLabel(tr("polling_title"))
+        self.lbl_title.setStyleSheet("color: #38BDF8; font-size: 13px;")
+        header.addWidget(self.lbl_title)
 
-        btn_reset = QPushButton("Сбросить статистику")
-        btn_reset.setMinimumWidth(150)
-        btn_reset.clicked.connect(self.reset_data)
-        header.addWidget(btn_reset, alignment=Qt.AlignRight)
+        self.btn_reset = QPushButton(tr("btn_reset_stats"))
+        self.btn_reset.setMinimumWidth(150)
+        self.btn_reset.clicked.connect(self.reset_data)
+        header.addWidget(self.btn_reset, alignment=Qt.AlignRight)
         layout.addLayout(header)
 
         # Big Digital Readout Banner
         banner = QHBoxLayout()
-        self.lbl_hz = QLabel("<b>0.0 Гц</b>")
+        self.lbl_hz = QLabel("<b>0.0 Hz</b>")
         self.lbl_hz.setStyleSheet("font-size: 32px; color: #10B981; font-weight: bold;")
         banner.addWidget(self.lbl_hz)
 
-        self.lbl_stats = QLabel("Интервал dt: 0.00 мс | Джиттер (StdDev): 0.000 мс | Пакетов: 0")
+        self.lbl_stats = QLabel("")
         self.lbl_stats.setStyleSheet("font-size: 13px; color: #94A3B8;")
         banner.addWidget(self.lbl_stats, alignment=Qt.AlignRight)
         layout.addLayout(banner)
@@ -48,8 +49,8 @@ class PollingWidget(QWidget):
         self.plot = pg.PlotWidget()
         self.plot.setBackground('#111827')
         self.plot.showGrid(x=True, y=True, alpha=0.3)
-        self.plot.setLabel('left', 'Интервал Δt между пакетами (мс)')
-        self.plot.setLabel('bottom', 'Индекс пакета опроса (история шины)')
+        self.plot.setLabel('left', tr("axis_polling_dt"))
+        self.plot.setLabel('bottom', tr("axis_polling_idx"))
         self.plot.setXRange(0, 300, padding=0.01)
         self.plot.setYRange(0, 8)
 
@@ -59,7 +60,7 @@ class PollingWidget(QWidget):
         self.curve = self.plot.plot([], [], pen=pg.mkPen('#0284C7', width=1.5))
         layout.addWidget(self.plot)
 
-        self.lbl_note = QLabel("ℹ️ <b>Стабильность шины:</b> Вращайте стики по кругу для замера частоты. Для проводных геймпадов отсечение одинаковых пакетов драйвером Linux является штатным (не потеря кадров). Осциллограф отображает выровненный интервал шины и реальный аппаратный джиттер.")
+        self.lbl_note = QLabel(tr("polling_note"))
         self.lbl_note.setStyleSheet("font-size: 11px; color: #94A3B8;")
         self.lbl_note.setWordWrap(True)
         layout.addWidget(self.lbl_note)
@@ -68,6 +69,15 @@ class PollingWidget(QWidget):
         self.timer.timeout.connect(self.update_view)
         self.timer.start(50)
 
+    def retranslate_ui(self):
+        """Retranslates all text elements to active language."""
+        self.lbl_title.setText(tr("polling_title"))
+        self.btn_reset.setText(tr("btn_reset_stats"))
+        self.plot.setLabel('left', tr("axis_polling_dt"))
+        self.plot.setLabel('bottom', tr("axis_polling_idx"))
+        self.lbl_note.setText(tr("polling_note"))
+        self.update_view()
+
     def reset_data(self):
         self.analyzer.reset()
         self.curve.setData([], [])
@@ -75,7 +85,8 @@ class PollingWidget(QWidget):
 
     def update_view(self):
         hz = self.analyzer.current_hz if self.analyzer.current_hz > 0 else float(self.analyzer.nominal_hz)
-        self.lbl_hz.setText(f"<b>{hz:.1f} Гц</b>")
+        hz_unit = "Hz" if (i18n and i18n.current_lang == "EN") else "Гц"
+        self.lbl_hz.setText(f"<b>{hz:.1f} {hz_unit}</b>")
 
         target_ms = self.analyzer.base_interval_ms if self.analyzer.base_interval_ms > 0 else 4.0
 
@@ -92,14 +103,14 @@ class PollingWidget(QWidget):
         self.lbl_hz.setStyleSheet(f"font-size: 32px; color: {color}; font-weight: bold;")
         self.target_line.setData([0, 300], [target_ms, target_ms])
 
-        conn_type = "Беспроводной" if self.analyzer.is_wireless else "Проводной USB"
-        drops_tag = f"Потерь: <b>{self.analyzer.dropped_packets_count}</b>" if self.analyzer.is_wireless else "Потери исключены"
+        conn_type = tr("polling_conn_wireless") if self.analyzer.is_wireless else tr("polling_conn_wired")
+        drops_tag = f"{tr('polling_drops')} <b>{self.analyzer.dropped_packets_count}</b>" if self.analyzer.is_wireless else tr("polling_drops_excluded")
 
         self.lbl_stats.setText(
-            f"Шина: <b>{target_ms:.2f} мс</b> | "
-            f"Джиттер: <b>{self.analyzer.jitter_stddev_ms:.3f} мс</b> | "
-            f"Канал: <b>{conn_type}</b> | "
-            f"Отсечено дублей: {self.analyzer.dedup_packets_count} | {drops_tag}"
+            f"{tr('polling_bus')} <b>{target_ms:.2f} ms</b> | "
+            f"{tr('polling_jitter')} <b>{self.analyzer.jitter_stddev_ms:.3f} ms</b> | "
+            f"{tr('polling_channel')} <b>{conn_type}</b> | "
+            f"{tr('polling_dedup')} {self.analyzer.dedup_packets_count} | {drops_tag}"
         )
 
         # Plot last 300 normalized deltas (unfolded from deduplication multiples)

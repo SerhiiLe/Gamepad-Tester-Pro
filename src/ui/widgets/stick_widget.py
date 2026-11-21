@@ -17,22 +17,24 @@ from PySide6.QtCore import Qt, QTimer
 import pyqtgraph as pg
 
 from ...analysis.sticks import StickAnalyzer
+from ...i18n import tr
 
 
 class StickWidget(QWidget):
     """Visualizes stick 2D deflection, guided testing stages, circularity, and noise."""
 
     TARGET_ZONES = [
-        {"name": "Север (Вверх)",   "x": 0.0,   "y": 0.65,  "color": "#38BDF8"},
-        {"name": "Восток (Вправо)", "x": 0.65,  "y": 0.0,   "color": "#34D399"},
-        {"name": "Юг (Вниз)",       "x": 0.0,   "y": -0.65, "color": "#FBBF24"},
-        {"name": "Запад (Влево)",   "x": -0.65, "y": 0.0,   "color": "#F472B6"},
+        {"key": "zone_north", "x": 0.0,   "y": 0.65,  "color": "#38BDF8"},
+        {"key": "zone_east",  "x": 0.65,  "y": 0.0,   "color": "#34D399"},
+        {"key": "zone_south", "x": 0.0,   "y": -0.65, "color": "#FBBF24"},
+        {"key": "zone_west",  "x": -0.65, "y": 0.0,   "color": "#F472B6"},
     ]
 
-    def __init__(self, analyzer: StickAnalyzer, title: str = "Левый стик (LS)", parent=None):
+    def __init__(self, analyzer: StickAnalyzer, title: str = "Левый стик (LS)", title_key: str = "stick_left_name", parent=None):
         super().__init__(parent)
         self.analyzer = analyzer
         self.title_str = title
+        self.title_key = title_key
 
         self.current_stage = 0
         self.target_zone_idx = 0
@@ -44,26 +46,20 @@ class StickWidget(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        box = QGroupBox(title)
-        box.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; }")
-        l_box = QVBoxLayout(box)
+        self.box = QGroupBox(tr(self.title_key) if self.title_key else title)
+        self.box.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; }")
+        l_box = QVBoxLayout(self.box)
         l_box.setContentsMargins(6, 6, 6, 6)
         l_box.setSpacing(4)
 
         # Header: Mode selector + Reset button
         header_layout = QHBoxLayout()
         self.combo_stages = QComboBox()
-        self.combo_stages.addItems([
-            "Свободный",
-            "1: Центр",
-            "2: Окружность",
-            "3: В кружки (Шум)",
-            "4: Snapback"
-        ])
+        self._populate_stages()
         self.combo_stages.currentIndexChanged.connect(self._on_stage_changed)
         header_layout.addWidget(self.combo_stages, stretch=1)
 
-        self.btn_reset = QPushButton("Сброс")
+        self.btn_reset = QPushButton(tr("btn_reset"))
         self.btn_reset.setMinimumWidth(70)
         self.btn_reset.clicked.connect(self.reset_data)
         header_layout.addWidget(self.btn_reset)
@@ -74,7 +70,7 @@ class StickWidget(QWidget):
         self.banner.setStyleSheet("background-color: #1E293B; border: 1px solid #334155; border-radius: 4px;")
         l_banner = QHBoxLayout(self.banner)
         l_banner.setContentsMargins(4, 3, 4, 3)
-        self.lbl_hint = QLabel("💡 Свободный ход (замеры отключены)")
+        self.lbl_hint = QLabel(tr("hint_free"))
         self.lbl_hint.setStyleSheet("font-size: 10px; color: #F8FAFC;")
         l_banner.addWidget(self.lbl_hint)
         l_box.addWidget(self.banner)
@@ -135,11 +131,34 @@ class StickWidget(QWidget):
         self.lbl_metrics.setStyleSheet("font-size: 10px; color: #94A3B8; font-family: monospace;")
         l_box.addWidget(self.lbl_metrics)
 
-        layout.addWidget(box)
+        layout.addWidget(self.box)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_view)
         self.timer.start(16)
+
+    def _populate_stages(self):
+        curr = self.combo_stages.currentIndex() if self.combo_stages.count() > 0 else 0
+        self.combo_stages.blockSignals(True)
+        self.combo_stages.clear()
+        self.combo_stages.addItems([
+            tr("stage_free"),
+            tr("stage_center"),
+            tr("stage_circle"),
+            tr("stage_targets"),
+            tr("stage_snapback")
+        ])
+        if 0 <= curr < self.combo_stages.count():
+            self.combo_stages.setCurrentIndex(curr)
+        self.combo_stages.blockSignals(False)
+
+    def retranslate_ui(self):
+        """Retranslates all text elements to the active language."""
+        if self.title_key:
+            self.box.setTitle(tr(self.title_key))
+        self._populate_stages()
+        self.btn_reset.setText(tr("btn_reset"))
+        self._update_hint_text()
 
     def _on_stage_changed(self, idx: int):
         self.current_stage = idx
@@ -161,32 +180,33 @@ class StickWidget(QWidget):
         self.circularity_track_curve.setVisible(is_circ)
         self.scatter_boundary.setVisible(is_circ)
         if not is_circ:
-            # Hide and clear visual items so they don't appear in other modes
             self.circularity_track_curve.setData([], [])
             self.scatter_boundary.clear()
         else:
-            # When entering Stage 2, start fresh circularity path
             self.analyzer.clear_circularity_track()
             self.circularity_track_curve.setData([], [])
             self.scatter_boundary.clear()
 
-        # Clean static guidance prompts without fluctuating numbers
+        self._update_hint_text()
+
+    def _update_hint_text(self):
+        idx = self.current_stage
         if idx == 0:
-            self.lbl_hint.setText("💡 Замер разрядности АЦП")
+            self.lbl_hint.setText(tr("hint_free"))
         elif idx == 1:
-            self.lbl_hint.setText("🎯 Полностью отпустите стик для замера центра")
+            self.lbl_hint.setText(tr("hint_center"))
         elif idx == 2:
-            self.lbl_hint.setText("🔄 Опишите полный круг по крайнему упору")
+            self.lbl_hint.setText(tr("hint_circle"))
         elif idx == 3:
-            zone_name = self.TARGET_ZONES[self.target_zone_idx]["name"]
-            self.lbl_hint.setText(f"🎯 Направьте стик в кружок: {zone_name}")
+            zone_key = self.TARGET_ZONES[self.target_zone_idx]["key"] if self.target_zone_idx < len(self.TARGET_ZONES) else "zone_north"
+            self.lbl_hint.setText(f"🎯 {tr(zone_key)}")
         elif idx == 4:
             if self.analyzer.total_flicks_x < 5:
-                self.lbl_hint.setText("⚡ 1. Отведите по горизонтали и отпустите")
+                self.lbl_hint.setText(tr("hint_snapback_x", done=self.analyzer.total_flicks_x, total=5))
             elif self.analyzer.total_flicks_y < 5:
-                self.lbl_hint.setText("⚡ 2. Отведите по вертикали и отпустите")
+                self.lbl_hint.setText(tr("hint_snapback_y", done=self.analyzer.total_flicks_y, total=5))
             else:
-                self.lbl_hint.setText("✅ 3. Тест завершён")
+                self.lbl_hint.setText(tr("hint_snapback_done", x_rate=int(self.analyzer.snapback_rate_x_pct), y_rate=int(self.analyzer.snapback_rate_y_pct)))
 
     def reset_data(self):
         self.analyzer.reset()
@@ -224,40 +244,40 @@ class StickWidget(QWidget):
         if self.current_stage == 0:
             if self.analyzer.adc_bits > 0:
                 self.lbl_metrics.setText(
-                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | АЦП: <b>~{self.analyzer.adc_bits:.0f} бит</b> (шаг: {self.analyzer.adc_step})"
+                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | ADC: <b>~{self.analyzer.adc_bits:.0f} bit</b> (step: {self.analyzer.adc_step})"
                 )
             else:
                 self.lbl_metrics.setText(
-                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | АЦП: <i>вращайте медленно...</i>"
+                    f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | ADC: <i>...</i>"
                 )
         elif self.current_stage == 1:
             drift = self.analyzer.center_drift_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Центр: <b>{drift:.1f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Center: <b>{drift:.1f}%</b>")
         elif self.current_stage == 2:
             cov = self.analyzer.get_circularity_coverage_pct()
             circ = self.analyzer.circularity_error_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Охват: <b>{cov:.0f}%</b> | Ошибка: <b>{circ:.1f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Cov: <b>{cov:.0f}%</b> | Err: <b>{circ:.1f}%</b>")
         elif self.current_stage == 3:
             noise = self.analyzer.peak_jitter_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Шум в точках: <b>{noise:.2f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Noise: <b>{noise:.2f}%</b>")
         elif self.current_stage == 4:
             flicks = self.analyzer.total_flicks
             peak = self.analyzer.peak_snapback_pct
-            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Сбросы: <b>{flicks}/10</b> | Пик: <b>{peak:.1f}%</b>")
+            self.lbl_metrics.setText(f"<b>X:</b>{x:+0.2f} <b>Y:</b>{y:+0.2f} | Flicks: <b>{flicks}/10</b> | Peak: <b>{peak:.1f}%</b>")
 
-        # Stable instructional transitions (No jumping numbers in hint banner)
+        # Stable instructional transitions
         if self.current_stage == 1:
             if self.analyzer.center_tested:
-                self.lbl_hint.setText("✅ Замер центра выполнен")
+                self.lbl_hint.setText("✅ " + tr("stage_center"))
             else:
-                self.lbl_hint.setText("🎯 Полностью отпустите стик для замера центра")
+                self.lbl_hint.setText(tr("hint_center"))
 
         elif self.current_stage == 2:
             cov = self.analyzer.get_circularity_coverage_pct()
             if cov >= 95.0:
-                self.lbl_hint.setText("✅ Полный круг пройден!")
+                self.lbl_hint.setText("✅ " + tr("stage_circle"))
             else:
-                self.lbl_hint.setText("🔄 Опишите полный круг по крайнему упору")
+                self.lbl_hint.setText(tr("hint_circle"))
 
         elif self.current_stage == 3:
             if self.target_zone_idx < len(self.TARGET_ZONES):
@@ -265,14 +285,15 @@ class StickWidget(QWidget):
                 self.active_target_scatter.setData([zone["x"]], [zone["y"]])
                 dist = math.hypot(x - zone["x"], y - zone["y"])
 
+                zone_title = tr(zone["key"])
                 if dist < 0.16:
                     self.target_settling_frames += 1
                     if self.target_settling_frames > 10:
                         self.analyzer.is_inside_target = True
                         self.target_hold_timer_frames += 1
-                        self.lbl_hint.setText(f"🎯 Идёт замер: {zone['name']}")
+                        self.lbl_hint.setText(f"🎯 {zone_title}")
                     else:
-                        self.lbl_hint.setText(f"⏳ Фиксация: {zone['name']}")
+                        self.lbl_hint.setText(f"⏳ {zone_title}")
 
                     if self.target_hold_timer_frames >= self.target_hold_required_frames:
                         self.target_hold_timer_frames = 0
@@ -281,26 +302,26 @@ class StickWidget(QWidget):
                         self.analyzer.is_inside_target = False
                         self.analyzer.clear_target_samples()
                         if self.target_zone_idx < len(self.TARGET_ZONES):
-                            next_name = self.TARGET_ZONES[self.target_zone_idx]["name"]
-                            self.lbl_hint.setText(f"🎯 Направьте стик в кружок: {next_name}")
+                            next_name = tr(self.TARGET_ZONES[self.target_zone_idx]["key"])
+                            self.lbl_hint.setText(f"🎯 {next_name}")
                         else:
                             self.active_target_scatter.setVisible(False)
-                            self.lbl_hint.setText("🎉 Все 4 зоны успешно пройдены!")
+                            self.lbl_hint.setText("🎉 OK")
                 else:
                     self.analyzer.is_inside_target = False
                     self.analyzer.clear_target_samples()
                     self.target_settling_frames = 0
                     self.target_hold_timer_frames = max(0, self.target_hold_timer_frames - 2)
-                    self.lbl_hint.setText(f"🎯 Направьте стик в кружок: {zone['name']}")
+                    self.lbl_hint.setText(f"🎯 {zone_title}")
             else:
                 self.analyzer.is_inside_target = False
                 self.active_target_scatter.setVisible(False)
-                self.lbl_hint.setText("🎉 Все 4 зоны успешно пройдены!")
+                self.lbl_hint.setText("🎉 OK")
 
         elif self.current_stage == 4:
             if self.analyzer.total_flicks_x < 5:
-                self.lbl_hint.setText("⚡ 1. Отведите по горизонтали и отпустите")
+                self.lbl_hint.setText(tr("hint_snapback_x", done=self.analyzer.total_flicks_x, total=5))
             elif self.analyzer.total_flicks_y < 5:
-                self.lbl_hint.setText("⚡ 2. Отведите по вертикали и отпустите")
+                self.lbl_hint.setText(tr("hint_snapback_y", done=self.analyzer.total_flicks_y, total=5))
             else:
-                self.lbl_hint.setText("✅ 3. Тест завершён")
+                self.lbl_hint.setText(tr("hint_snapback_done", x_rate=int(self.analyzer.snapback_rate_x_pct), y_rate=int(self.analyzer.snapback_rate_y_pct)))

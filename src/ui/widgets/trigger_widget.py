@@ -6,6 +6,7 @@ Displays vertical progress bars for L2/LT and R2/RT to save horizontal space.
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QGroupBox
 from PySide6.QtCore import Qt
 from ...analysis.triggers import TriggersAnalyzer
+from ...i18n import tr
 
 
 class TriggerWidget(QWidget):
@@ -18,15 +19,15 @@ class TriggerWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
 
-        box = QGroupBox("Курки")
-        box.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; }")
-        l_box = QHBoxLayout(box)
+        self.box = QGroupBox(tr("triggers_box_title"))
+        self.box.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; }")
+        l_box = QHBoxLayout(self.box)
         l_box.setContentsMargins(6, 8, 6, 8)
         l_box.setSpacing(10)
 
         # LT / L2 Column
         col_l = QVBoxLayout()
-        self.lbl_l_name = QLabel("<b>LT/L2</b>")
+        self.lbl_l_name = QLabel(tr("trigger_lt_name"))
         self.lbl_l_name.setAlignment(Qt.AlignCenter)
         self.lbl_l_name.setStyleSheet("color: #38BDF8; font-size: 11px;")
         col_l.addWidget(self.lbl_l_name)
@@ -58,9 +59,9 @@ class TriggerWidget(QWidget):
 
         # RT / R2 Column
         col_r = QVBoxLayout()
-        self.lbl_r_name = QLabel("<b>RT/R2</b>")
+        self.lbl_r_name = QLabel(tr("trigger_rt_name"))
         self.lbl_r_name.setAlignment(Qt.AlignCenter)
-        self.lbl_r_name.setStyleSheet("color: #34D399; font-size: 11px;")
+        self.lbl_r_name.setStyleSheet("color: #38BDF8; font-size: 11px;")
         col_r.addWidget(self.lbl_r_name)
 
         self.lbl_r_val = QLabel("0%")
@@ -81,22 +82,27 @@ class TriggerWidget(QWidget):
                 text-align: center;
             }
             QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 #059669, stop:1 #34D399);
+                background: qlineargradient(x1:0, y1:1, x2:0, y2:0, stop:0 #0284C7, stop:1 #38BDF8);
                 border-radius: 3px;
             }
         """)
         col_r.addWidget(self.bar_r, alignment=Qt.AlignCenter, stretch=1)
         l_box.addLayout(col_r)
 
-        layout.addWidget(box)
-        self.setFixedWidth(115)
+        layout.addWidget(self.box)
+
+    def retranslate_ui(self):
+        """Retranslates all text elements to active language."""
+        self.box.setTitle(tr("triggers_box_title"))
+        self.lbl_l_name.setText(tr("trigger_lt_name"))
+        self.lbl_r_name.setText(tr("trigger_rt_name"))
 
     def update_values(self):
-        for code, trig in self.analyzer.triggers.items():
-            pct = int(trig.curr_value * 100.0)
-            if "l2" in trig.name.lower() or "lt" in trig.name.lower() or "brake" in trig.name.lower() or trig.code in (0x02, 0x0A):
-                self.bar_l.setValue(pct)
-                self.lbl_l_val.setText(f"{pct}%")
-            else:
-                self.bar_r.setValue(pct)
-                self.lbl_r_val.setText(f"{pct}%")
+        """Called periodically by timer to update bars from analyzer state."""
+        l_pct, r_pct = self.analyzer.get_normalized_values()
+
+        self.bar_l.setValue(int(l_pct))
+        self.lbl_l_val.setText(f"{int(l_pct)}%")
+
+        self.bar_r.setValue(int(r_pct))
+        self.lbl_r_val.setText(f"{int(r_pct)}%")

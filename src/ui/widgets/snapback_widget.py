@@ -11,34 +11,39 @@ from PySide6.QtCore import Qt, QTimer
 import pyqtgraph as pg
 
 from ...analysis.sticks import StickAnalyzer
+from ...i18n import tr
 
 
 class StickOscilloscopeWidget(QWidget):
     """Real-time oscilloscope displaying rolling stick movement waveform (~100 ms) and snapback."""
 
-    def __init__(self, analyzer: StickAnalyzer, title: str = "Левый стик (LS)", parent=None):
+    def __init__(self, analyzer: StickAnalyzer, title: str = "Левый стик (LS)", title_key: str = "stick_left_name", parent=None):
         super().__init__(parent)
         self.analyzer = analyzer
+        self.title_str = title
+        self.title_key = title_key
+        self._last_peak = 0.0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
 
-        box = QGroupBox(f"Осциллограмма движения: {title} (~100 мс)")
-        box.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; }")
-        l_box = QVBoxLayout(box)
+        t_name = tr(self.title_key) if self.title_key else title
+        self.box = QGroupBox(tr("snapback_box_title", title=t_name))
+        self.box.setStyleSheet("QGroupBox { font-size: 11px; font-weight: bold; }")
+        l_box = QVBoxLayout(self.box)
         l_box.setContentsMargins(6, 6, 6, 6)
         l_box.setSpacing(4)
 
         # Header with status and clear button
         header = QHBoxLayout()
-        self.lbl_peak = QLabel("Пик отскока: <b>0.0%</b>")
+        self.lbl_peak = QLabel(tr("snapback_peak_label", peak=0.0))
         self.lbl_peak.setStyleSheet("font-size: 11px; color: #94A3B8;")
         header.addWidget(self.lbl_peak)
 
-        btn_clear = QPushButton("Сброс")
-        btn_clear.setMinimumWidth(80)
-        btn_clear.clicked.connect(self.clear_plot)
-        header.addWidget(btn_clear, alignment=Qt.AlignRight)
+        self.btn_clear = QPushButton(tr("btn_reset"))
+        self.btn_clear.setMinimumWidth(80)
+        self.btn_clear.clicked.connect(self.clear_plot)
+        header.addWidget(self.btn_clear, alignment=Qt.AlignRight)
         l_box.addLayout(header)
 
         # Plot
@@ -47,8 +52,8 @@ class StickOscilloscopeWidget(QWidget):
         self.plot.showGrid(x=True, y=True, alpha=0.25)
         self.plot.setYRange(-1.15, 1.15)
         self.plot.setXRange(0, 100)
-        self.plot.setLabel('left', 'Коорд.', units='')
-        self.plot.setLabel('bottom', 'Время (~100 мс / точки)')
+        self.plot.setLabel('left', tr("snapback_axis_y"), units='')
+        self.plot.setLabel('bottom', tr("snapback_axis_x"))
 
         # Center line (Zero)
         self.plot.plot([0, 100], [0, 0], pen=pg.mkPen('#64748B', width=1.5))
@@ -61,17 +66,28 @@ class StickOscilloscopeWidget(QWidget):
         self.curve_y = self.plot.plot([], [], pen=pg.mkPen('#34D399', width=1.8), name="Y")
         l_box.addWidget(self.plot)
 
-        layout.addWidget(box)
+        layout.addWidget(self.box)
 
         self._last_event_count = 0
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_plot)
         self.timer.start(25)
 
+    def retranslate_ui(self):
+        """Retranslates all text elements to active language."""
+        t_name = tr(self.title_key) if self.title_key else self.title_str
+        self.box.setTitle(tr("snapback_box_title", title=t_name))
+        self.btn_clear.setText(tr("btn_reset"))
+        self.plot.setLabel('left', tr("snapback_axis_y"))
+        self.plot.setLabel('bottom', tr("snapback_axis_x"))
+        self.lbl_peak.setText(tr("snapback_peak_label", peak=self._last_peak))
+
     def clear_plot(self):
         self.curve_x.setData([], [])
         self.curve_y.setData([], [])
-        self.lbl_peak.setText("Пик отскока: <b>0.0%</b>")
+        self._last_peak = 0.0
+        self.lbl_peak.setText(tr("snapback_peak_label", peak=0.0))
+        self.lbl_peak.setStyleSheet("font-size: 11px; color: #94A3B8;")
         self._last_event_count = 0
 
     def update_plot(self):
@@ -89,7 +105,11 @@ class StickOscilloscopeWidget(QWidget):
         if events:
             latest = events[-1]
             pct = latest.overshoot_peak * 100.0
+            self._last_peak = pct
             color = "#EF4444" if pct > 5.0 else "#10B981"
-            self.lbl_peak.setText(f"Пик отскока: <span style='color:{color}; font-weight:bold;'>{pct:.1f}%</span> ({latest.axis_name})")
+            self.lbl_peak.setText(f"{tr('snapback_peak_label', peak=pct)} ({latest.axis_name})")
+            self.lbl_peak.setStyleSheet(f"font-size: 11px; color: {color};")
         else:
-            self.lbl_peak.setText("Отскок: <span style='color:#10B981;'>нет (в норме)</span>")
+            self._last_peak = 0.0
+            self.lbl_peak.setText(tr("snapback_peak_label", peak=0.0))
+            self.lbl_peak.setStyleSheet("font-size: 11px; color: #94A3B8;")

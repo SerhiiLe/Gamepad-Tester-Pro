@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
 
 from ...analysis.buttons import ButtonsAnalyzer
+from ...i18n import tr
 
 
 class ButtonsTableWidget(QWidget):
@@ -26,32 +27,30 @@ class ButtonsTableWidget(QWidget):
 
         # Header
         header = QHBoxLayout()
-        lbl = QLabel("<b>Тестирование кнопок, крестовины (D-Pad) и детектор дребезга контактов (&lt; 7 мс)</b>")
-        lbl.setStyleSheet("color: #38BDF8; font-size: 13px;")
-        lbl.setWordWrap(True)
-        header.addWidget(lbl)
+        self.lbl_title = QLabel(tr("buttons_title"))
+        self.lbl_title.setStyleSheet("color: #38BDF8; font-size: 13px;")
+        self.lbl_title.setWordWrap(True)
+        header.addWidget(self.lbl_title)
 
-        btn_clear = QPushButton("Сбросить счётчики")
-        btn_clear.setMinimumWidth(150)
-        btn_clear.clicked.connect(self.clear_data)
-        header.addWidget(btn_clear, alignment=Qt.AlignRight)
+        self.btn_clear = QPushButton(tr("btn_clear_counters"))
+        self.btn_clear.setMinimumWidth(150)
+        self.btn_clear.clicked.connect(self.clear_data)
+        header.addWidget(self.btn_clear, alignment=Qt.AlignRight)
         layout.addLayout(header)
 
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels([
-            "Код (Hex / Dec)", "Назначение кнопки", "Состояние", "Нажатий", "Дребезг (<7мс)", "Мин. интервал"
-        ])
+        self._update_headers()
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         layout.addWidget(self.table, stretch=2)
 
         # Chatter Event Log
-        lbl_log = QLabel("<b>Журнал событий дребезга (Ложные / повторные срабатывания &lt; 7 мс):</b>")
-        lbl_log.setStyleSheet("color: #EF4444; font-size: 12px; margin-top: 6px;")
-        layout.addWidget(lbl_log)
+        self.lbl_log = QLabel(tr("chatter_log_title"))
+        self.lbl_log.setStyleSheet("color: #EF4444; font-size: 12px; margin-top: 6px;")
+        layout.addWidget(self.lbl_log)
 
         self.txt_log = QTextEdit()
         self.txt_log.setReadOnly(True)
@@ -64,6 +63,24 @@ class ButtonsTableWidget(QWidget):
         self.timer.start(50)
 
         self._last_logged_chatter_count = 0
+
+    def _update_headers(self):
+        self.table.setHorizontalHeaderLabels([
+            tr("col_btn_code"),
+            tr("col_btn_name"),
+            tr("col_btn_state"),
+            tr("col_btn_presses"),
+            tr("col_btn_chatter"),
+            tr("col_btn_min_dt")
+        ])
+
+    def retranslate_ui(self):
+        """Retranslates all text elements to active language."""
+        self.lbl_title.setText(tr("buttons_title"))
+        self.btn_clear.setText(tr("btn_clear_counters"))
+        self.lbl_log.setText(tr("chatter_log_title"))
+        self._update_headers()
+        self.update_table()
 
     def clear_data(self):
         self.analyzer.reset()
@@ -96,7 +113,7 @@ class ButtonsTableWidget(QWidget):
                 item_name.setText(name_str)
 
             # 2. State
-            state_str = "НАЖАТА" if btn.is_pressed else "Отпущена"
+            state_str = tr("state_pressed") if btn.is_pressed else tr("state_released")
             item_state = self.table.item(row, 2)
             if not item_state:
                 item_state = QTableWidgetItem(state_str)
@@ -130,7 +147,7 @@ class ButtonsTableWidget(QWidget):
                 item_chatter.setBackground(QColor(0, 0, 0, 0))
 
             # 5. Min Interval
-            min_int_str = f"{btn.min_press_interval_ms:.2f} мс" if btn.min_press_interval_ms != float('inf') else "—"
+            min_int_str = f"{btn.min_press_interval_ms:.2f} ms" if btn.min_press_interval_ms != float('inf') else "—"
             item_int = self.table.item(row, 5)
             if not item_int:
                 item_int = QTableWidgetItem(min_int_str)
@@ -142,5 +159,5 @@ class ButtonsTableWidget(QWidget):
         if len(self.analyzer.all_chatter_events) > self._last_logged_chatter_count:
             new_events = self.analyzer.all_chatter_events[self._last_logged_chatter_count:]
             for ev in new_events:
-                self.txt_log.append(f"⚠️ [ДРЕБЕЗГ] Кнопка '{ev.button_name}' (0x{ev.button_code:03X}): {ev.transition} с интервалом {ev.delta_ms:.2f} мс (< 7.0 мс)!")
+                self.txt_log.append(f"⚠️ [CHATTER] '{ev.button_name}' (0x{ev.button_code:03X}): {ev.transition} @ {ev.delta_ms:.2f} ms (< 7.0 ms)!")
             self._last_logged_chatter_count = len(self.analyzer.all_chatter_events)

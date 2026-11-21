@@ -31,6 +31,8 @@ from ..analysis.triggers import TriggersAnalyzer
 from ..feedback.rumble import RumbleController
 from ..feedback.leds import LedController
 
+from ..i18n import i18n, tr
+
 from .style import DARK_THEME_QSS
 from .widgets.stick_widget import StickWidget
 from .widgets.snapback_widget import StickOscilloscopeWidget
@@ -47,7 +49,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Gamepad Tester Pro — Комплексная диагностика игровых контроллеров")
+        self.setWindowTitle(tr("app_title"))
         self.resize(1180, 820)
         self.setStyleSheet(DARK_THEME_QSS)
 
@@ -59,8 +61,8 @@ class MainWindow(QMainWindow):
 
         self.polling_analyzer = PollingAnalyzer()
         self.buttons_analyzer = ButtonsAnalyzer()
-        self.left_stick_analyzer = StickAnalyzer(name="Левый стик (LS)")
-        self.right_stick_analyzer = StickAnalyzer(name="Правый стик (RS)")
+        self.left_stick_analyzer = StickAnalyzer(name=tr("stick_left_name"))
+        self.right_stick_analyzer = StickAnalyzer(name=tr("stick_right_name"))
         self.triggers_analyzer = TriggersAnalyzer()
         self.rumble_controller = RumbleController()
         self.led_controller = LedController()
@@ -76,22 +78,38 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(8)
 
-        # Top Control Bar (Device Selection, Profile, Battery, Refresh)
+        # Top Control Bar (Language Selector, Device Selection, Profile, Battery, Refresh)
         top_bar = QHBoxLayout()
 
-        top_bar.addWidget(QLabel("<b>Контроллер:</b>"))
+        # Compact 2-letter language switcher (RU, EN) before controller selector
+        self.combo_lang = QComboBox()
+        self.combo_lang.addItems(["RU", "EN"])
+        self.combo_lang.setFixedWidth(55)
+        self.combo_lang.setStyleSheet("QComboBox { font-weight: bold; }")
+        idx_lang = self.combo_lang.findText(i18n.current_lang)
+        if idx_lang >= 0:
+            self.combo_lang.setCurrentIndex(idx_lang)
+        self.combo_lang.currentTextChanged.connect(self._on_lang_changed)
+        top_bar.addWidget(self.combo_lang)
+
+        top_bar.addSpacing(6)
+        self.lbl_controller = QLabel(tr("lbl_controller"))
+        top_bar.addWidget(self.lbl_controller)
+
         self.combo_devices = QComboBox()
         self.combo_devices.setMinimumWidth(280)
         self.combo_devices.currentIndexChanged.connect(self._on_device_selected)
         top_bar.addWidget(self.combo_devices)
 
-        btn_rescan = QPushButton("↻ Поиск устройств")
-        btn_rescan.setMinimumWidth(140)
-        btn_rescan.clicked.connect(self.rescan_devices)
-        top_bar.addWidget(btn_rescan)
+        self.btn_rescan = QPushButton(tr("btn_rescan"))
+        self.btn_rescan.setMinimumWidth(140)
+        self.btn_rescan.clicked.connect(self.rescan_devices)
+        top_bar.addWidget(self.btn_rescan)
 
         top_bar.addSpacing(16)
-        top_bar.addWidget(QLabel("<b>Раскладка:</b>"))
+        self.lbl_layout = QLabel(tr("lbl_layout"))
+        top_bar.addWidget(self.lbl_layout)
+
         self.combo_profiles = QComboBox()
         self.combo_profiles.setMinimumWidth(180)
         for pkey, pval in PROFILES.items():
@@ -100,7 +118,7 @@ class MainWindow(QMainWindow):
         top_bar.addWidget(self.combo_profiles)
 
         top_bar.addStretch(1)
-        self.lbl_battery = QLabel("🔋 Батарея: —")
+        self.lbl_battery = QLabel(tr("lbl_battery_unknown"))
         self.lbl_battery.setStyleSheet("color: #34D399; font-weight: bold;")
         top_bar.addWidget(self.lbl_battery)
 
@@ -121,13 +139,13 @@ class MainWindow(QMainWindow):
         # Top Row: [Left Stick 2D] [Vertical Triggers] [Right Stick 2D] [Anomalies Table]
         top_row = QHBoxLayout()
 
-        self.w_stick_left = StickWidget(self.left_stick_analyzer, title="Левый стик (LS)")
+        self.w_stick_left = StickWidget(self.left_stick_analyzer, title="Левый стик (LS)", title_key="stick_left_name")
         top_row.addWidget(self.w_stick_left, stretch=3)
 
         self.w_triggers = TriggerWidget(self.triggers_analyzer)
         top_row.addWidget(self.w_triggers, stretch=0)
 
-        self.w_stick_right = StickWidget(self.right_stick_analyzer, title="Правый стик (RS)")
+        self.w_stick_right = StickWidget(self.right_stick_analyzer, title="Правый стик (RS)", title_key="stick_right_name")
         top_row.addWidget(self.w_stick_right, stretch=3)
 
         self.w_anomalies = StickAnomaliesWidget(self.left_stick_analyzer, self.right_stick_analyzer)
@@ -137,31 +155,31 @@ class MainWindow(QMainWindow):
 
         # Bottom Row: Two separate oscilloscopes in ms (Left Stick and Right Stick)
         bot_row = QHBoxLayout()
-        self.w_snapback_left = StickOscilloscopeWidget(self.left_stick_analyzer, title="Левый стик (LS)")
+        self.w_snapback_left = StickOscilloscopeWidget(self.left_stick_analyzer, title="Левый стик (LS)", title_key="stick_left_name")
         bot_row.addWidget(self.w_snapback_left, stretch=1)
 
-        self.w_snapback_right = StickOscilloscopeWidget(self.right_stick_analyzer, title="Правый стик (RS)")
+        self.w_snapback_right = StickOscilloscopeWidget(self.right_stick_analyzer, title="Правый стик (RS)", title_key="stick_right_name")
         bot_row.addWidget(self.w_snapback_right, stretch=1)
 
         l_sticks.addLayout(bot_row, stretch=4)
 
-        self.tabs.addTab(tab_sticks, "🎯 Стики и курки")
+        self.tabs.addTab(tab_sticks, tr("tab_sticks"))
 
         # Tab 2: Buttons & Chatter
         self.w_buttons = ButtonsTableWidget(self.buttons_analyzer)
-        self.tabs.addTab(self.w_buttons, "🔘 Кнопки и дребезг (<7мс)")
+        self.tabs.addTab(self.w_buttons, tr("tab_buttons"))
 
         # Tab 3: Polling Rate
         self.w_polling = PollingWidget(self.polling_analyzer)
-        self.tabs.addTab(self.w_polling, "⚡ Частота опроса (Hz)")
+        self.tabs.addTab(self.w_polling, tr("tab_polling"))
 
         # Tab 4: Feedback & LEDs
         self.w_feedback = FeedbackWidget(self.rumble_controller, self.led_controller)
-        self.tabs.addTab(self.w_feedback, "📳 Вибрация и подсветка")
+        self.tabs.addTab(self.w_feedback, tr("tab_feedback"))
 
         # Tab 5: Diagnostic Report & PDF Export
         self.w_report = ReportWidget(self)
-        self.tabs.addTab(self.w_report, "📋 Паспорт / Отчёт")
+        self.tabs.addTab(self.w_report, tr("tab_report"))
 
         # Tab navigation listener
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -173,6 +191,41 @@ class MainWindow(QMainWindow):
 
         # Initial device discovery
         self.rescan_devices()
+
+    def _on_lang_changed(self, lang: str):
+        """Called when user switches the 2-letter language selector."""
+        i18n.set_language(lang)
+        self.retranslate_ui()
+
+    def retranslate_ui(self):
+        """Retranslates all main window elements and child widgets."""
+        self.setWindowTitle(tr("app_title"))
+        self.lbl_controller.setText(tr("lbl_controller"))
+        self.btn_rescan.setText(tr("btn_rescan"))
+        self.lbl_layout.setText(tr("lbl_layout"))
+
+        self.tabs.setTabText(0, tr("tab_sticks"))
+        self.tabs.setTabText(1, tr("tab_buttons"))
+        self.tabs.setTabText(2, tr("tab_polling"))
+        self.tabs.setTabText(3, tr("tab_feedback"))
+        self.tabs.setTabText(4, tr("tab_report"))
+
+        if not self.devices and self.combo_devices.count() > 0:
+            self.combo_devices.setItemText(0, tr("no_controllers_found"))
+
+        self._update_battery_label()
+
+        # Retranslate child widgets
+        self.w_stick_left.retranslate_ui()
+        self.w_triggers.retranslate_ui()
+        self.w_stick_right.retranslate_ui()
+        self.w_anomalies.retranslate_ui()
+        self.w_snapback_left.retranslate_ui()
+        self.w_snapback_right.retranslate_ui()
+        self.w_buttons.retranslate_ui()
+        self.w_polling.retranslate_ui()
+        self.w_feedback.retranslate_ui()
+        self.w_report.retranslate_ui()
 
     def _on_tab_changed(self, index: int):
         """Called when user switches tabs in main window."""
@@ -192,7 +245,7 @@ class MainWindow(QMainWindow):
         self.combo_devices.clear()
 
         if not self.devices:
-            self.combo_devices.addItem("Контроллеры не обнаружены")
+            self.combo_devices.addItem(tr("no_controllers_found"))
             self.current_device = None
             self.rumble_controller.set_device(None)
             self.led_controller.set_device(None)
@@ -315,13 +368,24 @@ class MainWindow(QMainWindow):
     def _on_gui_tick(self):
         """Periodic tick on Qt main thread for widgets that update smoothly."""
         self.w_triggers.update_values()
+        self._update_battery_label()
 
+    def _update_battery_label(self):
         if self.current_device:
             cap, stat = self.current_device.get_battery_info()
             if cap is not None:
-                self.lbl_battery.setText(f"🔋 Батарея: {cap}% ({stat})")
+                if stat == "Charging":
+                    self.lbl_battery.setText(tr("lbl_battery_charging", cap=cap))
+                elif stat == "Full":
+                    self.lbl_battery.setText(tr("lbl_battery_full", cap=cap))
+                elif stat == "Discharging":
+                    self.lbl_battery.setText(tr("lbl_battery_discharging", cap=cap))
+                else:
+                    self.lbl_battery.setText(tr("lbl_battery_unknown", cap=cap))
             else:
-                self.lbl_battery.setText("🔌 Питание: USB (провод)")
+                self.lbl_battery.setText(tr("lbl_power_usb"))
+        else:
+            self.lbl_battery.setText(tr("lbl_power_usb"))
 
     def closeEvent(self, event):
         """Clean shutdown of threads and actuators."""
