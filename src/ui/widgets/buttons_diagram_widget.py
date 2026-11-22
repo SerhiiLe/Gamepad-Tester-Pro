@@ -136,31 +136,33 @@ class GamepadCanvas(QWidget):
         for code, info in btn_cfg.items():
             name, desc = info
             text = f"{name} {desc}".lower()
-            if "bottom" in text or "south" in text:
+            tokens = set(text.replace('/', ' ').replace('(', ' ').replace(')', ' ').split())
+
+            if "bottom" in tokens or "south" in tokens:
                 code_map["action_south"] = code
-            elif "right" in text and ("action" in text or "circle" in text or "east" in text):
+            elif "right" in tokens and ("action" in tokens or "circle" in tokens or "east" in tokens):
                 code_map["action_east"] = code
-            elif "top" in text and ("action" in text or "triangle" in text or "north" in text):
+            elif "top" in tokens and ("action" in tokens or "triangle" in tokens or "north" in tokens):
                 code_map["action_north"] = code
-            elif "left" in text and ("action" in text or "square" in text or "west" in text):
+            elif "left" in tokens and ("action" in tokens or "square" in tokens or "west" in tokens):
                 code_map["action_west"] = code
-            elif "l1" in text or "lb" in text or "left bumper" in text:
+            elif any(k in tokens for k in ("l1", "lb", "4p")) or "left bumper" in text:
                 code_map["bumper_l"] = code
-            elif "r1" in text or "rb" in text or "right bumper" in text:
+            elif any(k in tokens for k in ("r1", "rb", "3p")) or "right bumper" in text:
                 code_map["bumper_r"] = code
-            elif "l2" in text or "lt" in text or "zl" in text or "left trigger" in text:
+            elif any(k in tokens for k in ("l2", "lt", "zl", "4k")) or "left trigger" in text:
                 code_map["trigger_l"] = code
-            elif "r2" in text or "rt" in text or "zr" in text or "right trigger" in text:
+            elif any(k in tokens for k in ("r2", "rt", "zr", "3k")) or "right trigger" in text:
                 code_map["trigger_r"] = code
-            elif "select" in text or "back" in text or "share" in text or "minus" in text:
+            elif any(k in tokens for k in ("select", "back", "share", "minus", "create", "coin")):
                 code_map["back"] = code
-            elif "start" in text or "options" in text or "menu" in text or "plus" in text:
+            elif any(k in tokens for k in ("start", "options", "menu", "plus")):
                 code_map["start"] = code
-            elif "guide" in text or "home" in text or "ps button" in text or "mode" in text:
+            elif any(k in tokens for k in ("guide", "home", "mode")) or "ps button" in text:
                 code_map["guide"] = code
-            elif "l3" in text or "ls click" in text or "left stick click" in text:
+            elif "l3" in tokens or "left stick click" in text or "ls click" in text:
                 code_map["stick_l"] = code
-            elif "r3" in text or "rs click" in text or "right stick click" in text:
+            elif "r3" in tokens or "right stick click" in text or "rs click" in text:
                 code_map["stick_r"] = code
 
         # Resolve short label and state for each role

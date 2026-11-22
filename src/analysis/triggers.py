@@ -46,13 +46,14 @@ class TriggersAnalyzer:
         for code, trig in self.triggers.items():
             pct = trig.curr_value * 100.0
             name_low = trig.name.lower()
-            if ("l2" in name_low or "lt" in name_low or "brake" in name_low
-                    or "zl" in name_low or "левый" in name_low or "left" in name_low
-                    or code in (0x02, 0x03, 0x0A)):  # ABS_Z, ABS_RX (PS4), or ABS_BRAKE
+            tokens = set(name_low.replace('/', ' ').replace('(', ' ').replace(')', ' ').split())
+            if (any(k in tokens for k in ("l2", "lt", "zl", "brake"))
+                    or "левый" in name_low or "left" in name_low
+                    or code in (0x02, 0x03, 0x0A, 0x20)):  # ABS_Z, ABS_RX (PS4), ABS_BRAKE, or virtual L2
                 l_pct = pct
-            elif ("r2" in name_low or "rt" in name_low or "gas" in name_low
-                  or "zr" in name_low or "правый" in name_low or "right" in name_low
-                  or code in (0x04, 0x05, 0x09)):  # ABS_RY (PS4), ABS_RZ, or ABS_GAS
+            elif (any(k in tokens for k in ("r2", "rt", "zr", "gas"))
+                  or "правый" in name_low or "right" in name_low
+                  or code in (0x04, 0x05, 0x09, 0x21)):  # ABS_RY (PS4), ABS_RZ, ABS_GAS, or virtual R2
                 r_pct = pct
             else:
                 if l_pct == 0.0:

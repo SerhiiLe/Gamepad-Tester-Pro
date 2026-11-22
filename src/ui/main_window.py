@@ -442,10 +442,10 @@ class MainWindow(QMainWindow):
             )
 
             # Bridge digital triggers to trigger gauge bars (e.g. Switch ZL/ZR or standard LT/RT digital)
-            btn_low = btn_name.lower()
-            if "zl" in btn_low or "lt" in btn_low or "l2" in btn_low or "4k" in btn_low:
+            btn_tokens = set(btn_name.lower().replace('/', ' ').replace('(', ' ').replace(')', ' ').split())
+            if any(k in btn_tokens for k in ("zl", "lt", "l2", "4k")) or "left trigger" in btn_name.lower():
                 self.triggers_analyzer.update_digital_trigger(is_left=True, is_pressed=is_pressed, code=self._trig_l_axis, name=btn_name)
-            elif "zr" in btn_low or "rt" in btn_low or "r2" in btn_low or "3k" in btn_low:
+            elif any(k in btn_tokens for k in ("zr", "rt", "r2", "3k")) or "right trigger" in btn_name.lower():
                 self.triggers_analyzer.update_digital_trigger(is_left=False, is_pressed=is_pressed, code=self._trig_r_axis, name=btn_name)
 
         # 3. Absolute axis events (Sticks, Triggers, D-Pad Hat)

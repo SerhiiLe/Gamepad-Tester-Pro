@@ -409,12 +409,24 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertEqual(roles["trigger_l"]["state"], STATE_PRESSED)
         self.assertIn("trigger_l", diagram.tested_roles)
 
-        # 5. Reset tested button clears progress
+        # 5. Regression test: Pressing Start button must NOT duplicate / highlight Right Trigger (RT)
+        btn_analyzer.process_button_event(0x13B, True, 100.2, name="Start / Menu", desc="Start")
+        roles = diagram.canvas._resolve_roles("xbox")
+        self.assertEqual(roles["start"]["state"], STATE_PRESSED)
+        self.assertEqual(roles["trigger_r"]["state"], STATE_UNTESTED)
+        self.assertNotIn("trigger_r", diagram.tested_roles)
+
+        btn_analyzer.process_button_event(0x13B, False, 100.3, name="Start / Menu", desc="Start")
+        roles = diagram.canvas._resolve_roles("xbox")
+        self.assertEqual(roles["start"]["state"], STATE_TESTED)
+        self.assertEqual(roles["trigger_r"]["state"], STATE_UNTESTED)
+
+        # 6. Reset tested button clears progress
         diagram.reset_tested()
         self.assertEqual(len(diagram.tested_roles), 0)
         self.assertEqual(diagram.progress_bar.value(), 0)
 
-        # 6. Retranslate UI runs cleanly
+        # 7. Retranslate UI runs cleanly
         view.retranslate_ui()
 
     def test_stick_stage_synchronization(self):
