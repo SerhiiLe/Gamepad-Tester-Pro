@@ -68,10 +68,10 @@ python3 main.py --list
 
 ## 📽️ Скриншоты
 
-![sticks](blob/main/screenshots/sticks.webp)
+![sticks](screenshots/sticks.webp)
 
-![buttons](blob/main/screenshots/buttons.webp)
+![buttons](screenshots/buttons.webp)
 
-![report](blob/main/screenshots/report.webp)
+![report](screenshots/report.webp)
 
-![report-pdf](blob/main/screenshots/report-pdf.webp)
+![report-pdf](screenshots/report-pdf.webp)
