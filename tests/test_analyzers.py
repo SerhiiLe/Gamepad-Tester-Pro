@@ -359,6 +359,64 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertIn("%", w_trig.lbl_l_val.text())
         self.assertIn("%", w_trig.lbl_r_val.text())
 
+    def test_buttons_diagram_widget(self):
+        """Verifies ButtonsDiagramWidget 3-state verification, progress tracking, and subtab integration."""
+        from src.ui.widgets.buttons_container import ButtonsViewWidget
+        from src.ui.widgets.buttons_diagram_widget import (
+            ButtonsDiagramWidget, STATE_UNTESTED, STATE_PRESSED, STATE_TESTED
+        )
+        import os
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        btn_analyzer = ButtonsAnalyzer()
+        ls_analyzer = StickAnalyzer("Left")
+        rs_analyzer = StickAnalyzer("Right")
+        trig_analyzer = TriggersAnalyzer()
+
+        view = ButtonsViewWidget(
+            buttons_analyzer=btn_analyzer,
+            left_stick_analyzer=ls_analyzer,
+            right_stick_analyzer=rs_analyzer,
+            triggers_analyzer=trig_analyzer,
+            profile_getter=lambda: "xbox"
+        )
+
+        diagram = view.w_diagram
+
+        # 1. Initial state: 0 tested, empty outline (STATE_UNTESTED)
+        self.assertEqual(len(diagram.tested_roles), 0)
+        self.assertEqual(diagram.progress_bar.value(), 0)
+        roles = diagram.canvas._resolve_roles("xbox")
+        self.assertEqual(roles["action_south"]["state"], STATE_UNTESTED)
+        self.assertEqual(roles["action_south"]["label"], "A")
+
+        # 2. Press button A (BTN_SOUTH / 0x130): becomes STATE_PRESSED
+        btn_analyzer.process_button_event(0x130, True, 100.0, name="A", desc="Action Bottom")
+        roles = diagram.canvas._resolve_roles("xbox")
+        self.assertEqual(roles["action_south"]["state"], STATE_PRESSED)
+        self.assertIn("action_south", diagram.tested_roles)
+
+        # 3. Release button A: becomes STATE_TESTED (muted fill)
+        btn_analyzer.process_button_event(0x130, False, 100.1, name="A", desc="Action Bottom")
+        roles = diagram.canvas._resolve_roles("xbox")
+        self.assertEqual(roles["action_south"]["state"], STATE_TESTED)
+
+        # 4. Trigger deflection: analog trigger LT (ABS_Z) > 12% becomes pressed & tested
+        trig_analyzer.update_trigger(0x02, 128, name="LT")
+        roles = diagram.canvas._resolve_roles("xbox")
+        self.assertEqual(roles["trigger_l"]["state"], STATE_PRESSED)
+        self.assertIn("trigger_l", diagram.tested_roles)
+
+        # 5. Reset tested button clears progress
+        diagram.reset_tested()
+        self.assertEqual(len(diagram.tested_roles), 0)
+        self.assertEqual(diagram.progress_bar.value(), 0)
+
+        # 6. Retranslate UI runs cleanly
+        view.retranslate_ui()
+
     def test_stick_stage_synchronization(self):
         """Verifies synchronized stage switching across sticks while keeping hints and resets separate."""
         from src.ui.main_window import MainWindow

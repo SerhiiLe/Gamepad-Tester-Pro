@@ -337,4 +337,18 @@ TRANSLATIONS = {
     "txt_rep_sec5": "5. АНАЛОГОВЫЕ ТРИГГЕРЫ (КУРКИ)",
     "txt_rep_sec6": "6. ПРЕДПОЛАГАЕМЫЕ ХАРАКТЕРИСТИКИ И ПОДЛИННОСТЬ УСТРОЙСТВА",
     "txt_rep_sec7": "7. ОБНАРУЖЕННЫЕ ПРОБЛЕМЫ И РЕКОМЕНДАЦИИ:",
+
+    # Buttons visual diagram
+    "tab_buttons_table": "📋 Таблица",
+    "tab_buttons_diagram": "🎮 Схема",
+    "diagram_title": "Визуальная проверка кнопок и стиков",
+    "diagram_tested_count": "Проверено: {tested} из {total} ({pct}%)",
+    "diagram_all_tested": "✅ Все основные кнопки проверены!",
+    "btn_reset_diagram": "Сбросить проверку",
+    "legend_untested": "Не проверена",
+    "legend_pressed": "Нажата сейчас",
+    "legend_tested": "Проверена",
+    "diagram_telemetry": "LS: X:{lx:+.2f} Y:{ly:+.2f}  |  RS: X:{rx:+.2f} Y:{ry:+.2f}  |  LT: {lt}%  RT: {rt}%",
+    "diagram_last_btn": "Последняя: {btn}",
+    "diagram_no_press": "Ожидание ввода...",
 }

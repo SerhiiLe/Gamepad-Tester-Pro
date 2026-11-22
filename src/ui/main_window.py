@@ -38,7 +38,7 @@ from .widgets.stick_widget import StickWidget
 from .widgets.snapback_widget import StickOscilloscopeWidget
 from .widgets.stick_anomalies_widget import StickAnomaliesWidget
 from .widgets.trigger_widget import TriggerWidget
-from .widgets.buttons_table import ButtonsTableWidget
+from .widgets.buttons_container import ButtonsViewWidget
 from .widgets.polling_widget import PollingWidget
 from .widgets.feedback_widget import FeedbackWidget
 from .widgets.report_widget import ReportWidget
@@ -178,8 +178,14 @@ class MainWindow(QMainWindow):
 
         self.tabs.addTab(tab_sticks, tr("tab_sticks"))
 
-        # Tab 2: Buttons & Chatter
-        self.w_buttons = ButtonsTableWidget(self.buttons_analyzer)
+        # Tab 2: Buttons & Chatter (Table + Diagram Sub-tabs)
+        self.w_buttons = ButtonsViewWidget(
+            buttons_analyzer=self.buttons_analyzer,
+            left_stick_analyzer=self.left_stick_analyzer,
+            right_stick_analyzer=self.right_stick_analyzer,
+            triggers_analyzer=self.triggers_analyzer,
+            profile_getter=lambda: self.current_profile_key
+        )
         self.tabs.addTab(self.w_buttons, tr("tab_buttons"))
 
         # Tab 3: Polling Rate

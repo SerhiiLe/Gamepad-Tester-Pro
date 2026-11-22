@@ -336,4 +336,18 @@ TRANSLATIONS = {
     "txt_rep_sec5": "5. ANALOG TRIGGERS",
     "txt_rep_sec6": "6. ESTIMATED ARCHITECTURE AND AUTHENTICITY",
     "txt_rep_sec7": "7. DETECTED ISSUES AND RECOMMENDATIONS:",
+
+    # Buttons visual diagram
+    "tab_buttons_table": "📋 Table",
+    "tab_buttons_diagram": "🎮 Diagram",
+    "diagram_title": "Visual Button & Stick Test",
+    "diagram_tested_count": "Tested: {tested} of {total} ({pct}%)",
+    "diagram_all_tested": "✅ All primary buttons tested!",
+    "btn_reset_diagram": "Reset Test",
+    "legend_untested": "Not tested",
+    "legend_pressed": "Pressed now",
+    "legend_tested": "Tested",
+    "diagram_telemetry": "LS: X:{lx:+.2f} Y:{ly:+.2f}  |  RS: X:{rx:+.2f} Y:{ry:+.2f}  |  LT: {lt}%  RT: {rt}%",
+    "diagram_last_btn": "Last: {btn}",
+    "diagram_no_press": "Waiting for input...",
 }
