@@ -121,5 +121,5 @@ class ReportWidget(QWidget):
             if ok:
                 QMessageBox.information(self, "Success", tr("pdf_export_success", path=path))
             else:
-                err = get_last_pdf_error() or "Cannot generate PDF (verify reportlab and file write permissions)."
+                err = get_last_pdf_error() or "Cannot generate PDF (verify file write permissions)."
                 QMessageBox.critical(self, "PDF Generation Error", tr("pdf_export_error", err=err))

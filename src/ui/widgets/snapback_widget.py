@@ -1,5 +1,5 @@
 """
-Stick Motion & Snapback Oscilloscope Widget (PyQtGraph)
+Stick Motion & Snapback Oscilloscope Widget (Custom QPainter)
 Plots stick deflection vs time across a rolling ~100 ms window (100 points)
 to visually capture real-time stick trail, release dynamics, and snapback.
 """
@@ -8,8 +8,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGroupBox
 )
 from PySide6.QtCore import Qt, QTimer
-import pyqtgraph as pg
 
+from .plot_canvas import TimeSeriesCanvas
 from ...analysis.sticks import StickAnalyzer
 from ...i18n import tr
 
@@ -46,24 +46,23 @@ class StickOscilloscopeWidget(QWidget):
         header.addWidget(self.btn_clear, alignment=Qt.AlignRight)
         l_box.addLayout(header)
 
-        # Plot
-        self.plot = pg.PlotWidget()
-        self.plot.setBackground('#111827')
-        self.plot.showGrid(x=True, y=True, alpha=0.25)
-        self.plot.setYRange(-1.15, 1.15)
-        self.plot.setXRange(0, 100)
-        self.plot.setLabel('left', tr("snapback_axis_y"), units='')
-        self.plot.setLabel('bottom', tr("snapback_axis_x"))
-
-        # Center line (Zero)
-        self.plot.plot([0, 100], [0, 0], pen=pg.mkPen('#64748B', width=1.5))
-        # Snapback tolerance (+- 0.05 / 5%)
-        self.plot.plot([0, 100], [0.05, 0.05], pen=pg.mkPen('#EF4444', width=1, style=Qt.DashLine))
-        self.plot.plot([0, 100], [-0.05, -0.05], pen=pg.mkPen('#EF4444', width=1, style=Qt.DashLine))
-
-        # Real-time curves: X (cyan) and Y (emerald green)
-        self.curve_x = self.plot.plot([], [], pen=pg.mkPen('#38BDF8', width=2), name="X")
-        self.curve_y = self.plot.plot([], [], pen=pg.mkPen('#34D399', width=1.8), name="Y")
+        # Custom QPainter TimeSeriesCanvas
+        self.plot = TimeSeriesCanvas(
+            y_min=-1.15,
+            y_max=1.15,
+            x_min=0.0,
+            x_max=100.0,
+            auto_y=False,
+            auto_x=False,
+            show_legend=True,
+            x_label=tr("snapback_axis_x"),
+            y_label=tr("snapback_axis_y"),
+        )
+        self.plot.set_ref_lines([
+            {"y": 0.0, "color": "#64748B", "width": 1.3, "dashed": False},
+            {"y": 0.05, "color": "#EF4444", "width": 1.0, "dashed": True},
+            {"y": -0.05, "color": "#EF4444", "width": 1.0, "dashed": True},
+        ])
         l_box.addWidget(self.plot)
 
         layout.addWidget(self.box)
@@ -78,13 +77,11 @@ class StickOscilloscopeWidget(QWidget):
         t_name = tr(self.title_key) if self.title_key else self.title_str
         self.box.setTitle(tr("snapback_box_title", title=t_name))
         self.btn_clear.setText(tr("btn_reset"))
-        self.plot.setLabel('left', tr("snapback_axis_y"))
-        self.plot.setLabel('bottom', tr("snapback_axis_x"))
+        self.plot.set_labels(x_label=tr("snapback_axis_x"), y_label=tr("snapback_axis_y"))
         self.lbl_peak.setText(tr("snapback_peak_label", peak=self._last_peak))
 
     def clear_plot(self):
-        self.curve_x.setData([], [])
-        self.curve_y.setData([], [])
+        self.plot.set_series([])
         self._last_peak = 0.0
         self.lbl_peak.setText(tr("snapback_peak_label", peak=0.0))
         self.lbl_peak.setStyleSheet("font-size: 11px; color: #94A3B8;")
@@ -97,8 +94,10 @@ class StickOscilloscopeWidget(QWidget):
             xs = [p[1] for p in hist]
             ys = [p[2] for p in hist]
             idx = list(range(len(xs)))
-            self.curve_x.setData(idx, xs)
-            self.curve_y.setData(idx, ys)
+            self.plot.set_series([
+                {"name": "X", "color": "#38BDF8", "width": 2.0, "xs": idx, "ys": xs},
+                {"name": "Y", "color": "#34D399", "width": 1.8, "xs": idx, "ys": ys},
+            ])
 
         # Check latest snapback event
         events = self.analyzer.snapback_events

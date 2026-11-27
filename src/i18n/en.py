@@ -22,6 +22,7 @@ TRANSLATIONS = {
     "tab_buttons": "🔘 Buttons & Chatter (<7ms)",
     "tab_polling": "⚡ Polling Rate (Hz)",
     "tab_feedback": "📳 Rumble & LEDs",
+    "tab_touchpad_gyro": "🧭 Touchpad & Gyro",
     "tab_report": "📋 Passport / Report",
 
     # -------------------------------------------------------------------------
@@ -132,13 +133,13 @@ TRANSLATIONS = {
     # -------------------------------------------------------------------------
     # Buttons & Debounce Table
     # -------------------------------------------------------------------------
-    "buttons_title": "<b>Button, D-Pad Testing & Contact Chatter (&lt; 7 ms) Detection</b>",
+    "buttons_title": "<b>Button, D-Pad Testing & Contact Chatter Detection</b>",
     "btn_clear_counters": "Reset Counters",
     "col_btn_code": "Code (Hex / Dec)",
     "col_btn_name": "Button Name",
     "col_btn_state": "State",
     "col_btn_presses": "Presses",
-    "col_btn_chatter": "Chatter (<7ms)",
+    "col_btn_chatter": "Chatter",
     "col_btn_min_dt": "Min Interval",
     "chatter_log_title": "<b>Chatter Event Log (False / Repeated triggers &lt; 7 ms):</b>",
 
@@ -350,4 +351,19 @@ TRANSLATIONS = {
     "diagram_telemetry": "LS: X:{lx:+.2f} Y:{ly:+.2f}  |  RS: X:{rx:+.2f} Y:{ry:+.2f}  |  LT: {lt}%  RT: {rt}%",
     "diagram_last_btn": "Last: {btn}",
     "diagram_no_press": "Waiting for input...",
+
+    # Touchpad & Gyroscope / IMU
+    "touchpad_group_title": "Touchpad Surface",
+    "tp_no_device": "No controller selected.",
+    "tp_unsupported": "⚠️ Touchpad not detected on current controller (or missing from descriptor).",
+    "tp_coords_fmt": "Finger 1: {f1}  |  Finger 2: {f2}\nPad Click: {click} ({clicks})  |  Touches: {touches}",
+    "gyro_group_title": "Gyroscope & Accelerometer (IMU)",
+    "gyro_no_device": "No controller selected.",
+    "gyro_unsupported": "⚠️ Gyroscope / IMU not detected on current controller (or not supported by driver).",
+    "gyro_rot_title": "Rotation (Angles / Rate)",
+    "gyro_shift_title": "Displacement (Δg / Accel)",
+    "btn_gyro_recenter": "🎯 Center / Calib.",
+    "gyro_plot_axis_y": "Angle (°)",
+    "gyro_plot_axis_x": "Time (s)",
+    "unit_deg_s": "°/s",
 }

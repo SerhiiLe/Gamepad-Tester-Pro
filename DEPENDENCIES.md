@@ -1,50 +1,44 @@
 # Зависимости Gamepad Tester / System Dependencies
 
-Данный документ содержит перечень необходимых библиотек и системных пакетов для работы диагностического комплекса Gamepad Tester на различных дистрибутивах Linux.
+Данный документ содержит перечень библиотек и системных настроек для работы диагностического комплекса Gamepad Tester на различных дистрибутивах Linux.
+
+После миграции графиков на нативный `QPainter` и генерации PDF на `QPdfWriter + QTextDocument` проект больше **не требует** `pyqtgraph`, `numpy`, `reportlab` и `hidapi` — единственной обязательной библиотекой является **`PySide6`**.
 
 ---
 
 ## 1. Сводная таблица пакетов
 
-| Назначение | Python модуль | Manjaro / Arch Linux (`pacman`) | Debian / Ubuntu (`apt`) |
-| :--- | :--- | :--- | :--- |
-| **Графический интерфейс** | `PySide6` | `python-pyside6` | `python3-pyside6` / `pip install PySide6` |
-| **Аппаратные 2D-графики** | `pyqtgraph` | `python-pyqtgraph` | `python3-pyqtgraph` / `pip install pyqtgraph` |
-| **Низкоуровневый ввод** | `evdev` | `python-evdev` | `python3-evdev` |
-| **Прямой доступ к HID** | `hid` (hidapi) | `python-hidapi` | `python3-hid` / `pip install hidapi` |
-| **Генерация PDF-отчетов** | `reportlab` | `python-reportlab` | `python3-reportlab` |
-| **NumPy (математика)** | `numpy` | `python-numpy` | `python3-numpy` |
+| Назначение | Python модуль | Статус | Manjaro / Arch Linux (`pacman`) | Debian / Ubuntu (`apt`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **GUI, графики и PDF** | `PySide6` | Обязательный | `python-pyside6` | `python3-pyside6` / `pip install PySide6` |
+| **Резервное чтение absinfo** | `evdev` | Опциональный fallback | `python-evdev` | `python3-evdev` |
+
+*(Основное чтение устройств `/dev/input/event*` и `/dev/hidraw*` выполняется напрямую через Linux `ioctl` и стандартную библиотеку Python без сторонних обёрток).*
 
 ---
 
 ## 2. Установка в Manjaro / Arch Linux
 
-В Manjaro все необходимые библиотеки доступны в официальных репозиториях:
-
 ```bash
 sudo pacman -Syu
-sudo pacman -S python-pyside6 python-pyqtgraph python-evdev python-hidapi python-reportlab python-numpy
+sudo pacman -S python-pyside6
 ```
 
 ---
 
 ## 3. Установка в Debian / Ubuntu (22.04 / 24.04+)
 
-В Debian и Ubuntu большинство пакетов доступно через `apt`:
-
 ```bash
 sudo apt update
-sudo apt install -y python3-evdev python3-reportlab python3-numpy python3-pip libhidapi-dev
+sudo apt install -y python3-pip
 
-# PySide6 и pyqtgraph (если отсутствуют в apt дистрибутива):
-pip3 install --user PySide6 pyqtgraph hidapi
+# PySide6 (если отсутствует в apt вашего дистрибутива):
+pip3 install --user PySide6
 ```
 
 ---
 
 ## 4. Установка через Python Virtual Environment (`venv` / `pip`)
-
-Если вы предпочитаете изолированное виртуальное окружение:
 
 ```bash
 python3 -m venv .venv
@@ -77,4 +71,3 @@ KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
 ```bash
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
-

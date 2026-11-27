@@ -1,5 +1,5 @@
 """
-Interactive Stick Widget (PyQtGraph)
+Interactive Stick Widget (Custom QPainter)
 Provides guided testing stages with clean, stable instructional prompts:
 - Stage 0: Свободный режим (Free Test)
 - Stage 1: Проверка центра и дрейфа (Center & Drift)
@@ -9,15 +9,130 @@ Provides guided testing stages with clean, stable instructional prompts:
 """
 
 import math
-import numpy as np
+from typing import Dict, List, Optional, Tuple
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QFrame, QGroupBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QComboBox, QFrame, QGroupBox, QSizePolicy
 )
-from PySide6.QtCore import Qt, QTimer, Signal
-import pyqtgraph as pg
+from PySide6.QtCore import Qt, QTimer, Signal, QPointF, QRectF
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
 
 from ...analysis.sticks import StickAnalyzer
 from ...i18n import tr
+
+
+class StickCanvas(QWidget):
+    """Square aspect-locked QPainter canvas rendering 2D stick deflection, gates, targets, and trails."""
+
+    def __init__(self, analyzer: StickAnalyzer, target_zones: List[Dict], parent=None):
+        super().__init__(parent)
+        self.analyzer = analyzer
+        self.target_zones = target_zones
+
+        self.show_targets: bool = False
+        self.active_target_idx: Optional[int] = None
+        self.show_circularity: bool = False
+
+        self.setMinimumSize(180, 180)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        w = float(self.width())
+        h = float(self.height())
+        p.fillRect(QRectF(0.0, 0.0, w, h), QColor("#111827"))
+
+        cx = w / 2.0
+        cy = h / 2.0
+        # World coordinate range [-1.25 .. +1.25] -> span = 2.5
+        scale = max(20.0, min(w, h) / 2.5)
+
+        def to_px(x: float, y: float) -> QPointF:
+            return QPointF(cx + x * scale, cy - y * scale)
+
+        # 1. Subtle background coordinate grid
+        grid_pen = QPen(QColor(148, 163, 184, 35), 1.0, Qt.DotLine)
+        p.setPen(grid_pen)
+        for v in (-1.0, -0.5, 0.5, 1.0):
+            p.drawLine(to_px(v, -1.18), to_px(v, 1.18))
+            p.drawLine(to_px(-1.18, v), to_px(1.18, v))
+
+        # Center axes
+        p.setPen(QPen(QColor("#1F2937"), 1.2))
+        p.drawLine(to_px(-1.15, 0.0), to_px(1.15, 0.0))
+        p.drawLine(to_px(0.0, -1.15), to_px(0.0, 1.15))
+
+        # 2. Reference Unit Circle (Radius 1.0) & Deadzone Circle (Radius 0.10)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor("#334155"), 1.5, Qt.DashLine))
+        p.drawEllipse(QPointF(cx, cy), 1.0 * scale, 1.0 * scale)
+
+        p.setPen(QPen(QColor("#475569"), 1.0, Qt.DotLine))
+        p.drawEllipse(QPointF(cx, cy), 0.10 * scale, 0.10 * scale)
+
+        # 3. Target zones (Stage 3 only)
+        if self.show_targets:
+            for idx, zone in enumerate(self.target_zones):
+                tc = to_px(zone["x"], zone["y"])
+                tr_px = 0.16 * scale
+                if self.active_target_idx == idx:
+                    p.setBrush(QBrush(QColor(56, 189, 248, 60)))
+                    p.setPen(QPen(QColor("#38BDF8"), 2.0))
+                    p.drawEllipse(tc, tr_px, tr_px)
+                else:
+                    p.setBrush(Qt.NoBrush)
+                    p.setPen(QPen(QColor(zone["color"]), 1.5, Qt.DashLine))
+                    p.drawEllipse(tc, tr_px, tr_px)
+
+        # 4. Persistent circularity track & boundary dots (Stage 2 only)
+        if self.show_circularity and self.analyzer.boundary_points:
+            pts = self.analyzer.boundary_points
+            path = QPainterPath()
+            started = False
+            valid_pts: List[QPointF] = []
+            for px_val, py_val in pts:
+                if math.isnan(px_val) or math.isnan(py_val):
+                    started = False
+                    continue
+                pt = to_px(px_val, py_val)
+                valid_pts.append(pt)
+                if not started:
+                    path.moveTo(pt)
+                    started = True
+                else:
+                    path.lineTo(pt)
+
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor("#10B981"), 2.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPath(path)
+
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(QColor(16, 185, 129, 180)))
+            for pt in valid_pts:
+                p.drawEllipse(pt, 2.0, 2.0)
+
+        # 5. Short moving trajectory trail (last 30 points)
+        if len(self.analyzer._history) >= 2:
+            hist = list(self.analyzer._history)[-30:]
+            trail_path = QPainterPath()
+            first = to_px(hist[0][1], hist[0][2])
+            trail_path.moveTo(first)
+            for item in hist[1:]:
+                trail_path.lineTo(to_px(item[1], item[2]))
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(56, 189, 248, 160), 1.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPath(trail_path)
+
+        # 6. Current Position Dot
+        pos = to_px(self.analyzer.curr_x, self.analyzer.curr_y)
+        p.setBrush(QBrush(QColor("#38BDF8")))
+        p.setPen(QPen(QColor("#FFFFFF"), 1.5))
+        p.drawEllipse(pos, 6.0, 6.0)
+
+        p.end()
 
 
 class StickWidget(QWidget):
@@ -77,56 +192,9 @@ class StickWidget(QWidget):
         l_banner.addWidget(self.lbl_hint)
         l_box.addWidget(self.banner)
 
-        # PyQtGraph PlotWidget
-        self.plot_widget = pg.PlotWidget()
-        self.plot_widget.setAspectLocked(True)
-        self.plot_widget.setXRange(-1.25, 1.25)
-        self.plot_widget.setYRange(-1.25, 1.25)
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.2)
-        self.plot_widget.setBackground('#111827')
-        self.plot_widget.hideAxis('bottom')
-        self.plot_widget.hideAxis('left')
-
-        # Reference Unit Circle (Radius 1.0)
-        theta = np.linspace(0, 2 * np.pi, 150)
-        self.circle_item = self.plot_widget.plot(np.cos(theta), np.sin(theta), pen=pg.mkPen('#334155', width=1.5, style=Qt.DashLine))
-
-        # Deadzone Circle (Radius 0.10)
-        self.plot_widget.plot(0.10 * np.cos(theta), 0.10 * np.sin(theta), pen=pg.mkPen('#475569', width=1, style=Qt.DotLine))
-
-        # Center axes
-        self.plot_widget.plot([-1.15, 1.15], [0, 0], pen=pg.mkPen('#1F2937', width=1))
-        self.plot_widget.plot([0, 0], [-1.15, 1.15], pen=pg.mkPen('#1F2937', width=1))
-
-        # Target zones for Stage 3
-        self.target_circles_plots = []
-        for zone in self.TARGET_ZONES:
-            tx = zone["x"] + 0.16 * np.cos(theta)
-            ty = zone["y"] + 0.16 * np.sin(theta)
-            curve = self.plot_widget.plot(tx, ty, pen=pg.mkPen(zone["color"], width=1.5, style=Qt.DashLine))
-            curve.setVisible(False)
-            self.target_circles_plots.append(curve)
-
-        self.active_target_scatter = pg.ScatterPlotItem(size=32, brush=pg.mkBrush(56, 189, 248, 60), pen=pg.mkPen('#38BDF8', width=2))
-        self.plot_widget.addItem(self.active_target_scatter)
-        self.active_target_scatter.setVisible(False)
-
-        # Boundary Points Scatter (Circularity samples)
-        self.scatter_boundary = pg.ScatterPlotItem(size=4, brush=pg.mkBrush(16, 185, 129, 180), pen=None)
-        self.plot_widget.addItem(self.scatter_boundary)
-        self.scatter_boundary.setVisible(False)
-
-        # Circularity Track Curve (Continuous perimeter line for Stage 2)
-        self.circularity_track_curve = self.plot_widget.plot([], [], pen=pg.mkPen('#10B981', width=2.5), connect='finite')
-        self.circularity_track_curve.setVisible(False)
-
-        # Trajectory trail (Short moving history trail for all modes)
-        self.trail_curve = self.plot_widget.plot([], [], pen=pg.mkPen(56, 189, 248, 160, width=1.5))
-
-        # Current Position Dot
-        self.pos_dot = self.plot_widget.plot([0], [0], pen=None, symbol='o', symbolSize=12, symbolBrush='#38BDF8', symbolPen=pg.mkPen('#FFFFFF', width=1.5))
-
-        l_box.addWidget(self.plot_widget, stretch=1)
+        # Custom QPainter Canvas
+        self.canvas = StickCanvas(self.analyzer, self.TARGET_ZONES)
+        l_box.addWidget(self.canvas, stretch=1)
 
         # Bottom Metrics Bar (Permanent location for live coordinate values)
         self.lbl_metrics = QLabel("X: 0.000 | Y: 0.000")
@@ -183,22 +251,15 @@ class StickWidget(QWidget):
         self.target_zone_idx = 0
 
         show_targets = (idx == 3)
-        for p in self.target_circles_plots:
-            p.setVisible(show_targets)
-        self.active_target_scatter.setVisible(show_targets)
+        self.canvas.show_targets = show_targets
+        self.canvas.active_target_idx = 0 if show_targets else None
 
-        # Stage 2 Circularity track visibility: strictly visible only in Stage 2!
         is_circ = (idx == 2)
-        self.circularity_track_curve.setVisible(is_circ)
-        self.scatter_boundary.setVisible(is_circ)
-        if not is_circ:
-            self.circularity_track_curve.setData([], [])
-            self.scatter_boundary.clear()
-        else:
+        self.canvas.show_circularity = is_circ
+        if is_circ:
             self.analyzer.clear_circularity_track()
-            self.circularity_track_curve.setData([], [])
-            self.scatter_boundary.clear()
 
+        self.canvas.update()
         self._update_hint_text()
         if emit_signal:
             self.stage_changed.emit(idx)
@@ -234,9 +295,6 @@ class StickWidget(QWidget):
 
     def reset_data(self):
         self.analyzer.reset()
-        self.circularity_track_curve.setData([], [])
-        self.scatter_boundary.clear()
-        self.trail_curve.setData([], [])
         self.target_hold_timer_frames = 0
         self.target_settling_frames = 0
         self.target_zone_idx = 0
@@ -244,25 +302,6 @@ class StickWidget(QWidget):
 
     def update_view(self):
         x, y = self.analyzer.curr_x, self.analyzer.curr_y
-        self.pos_dot.setData([x], [y])
-
-        # Trajectory trail (Short moving history trail for all modes)
-        if len(self.analyzer._history) >= 2:
-            hist = list(self.analyzer._history)[-30:]
-            tx = [p[1] for p in hist]
-            ty = [p[2] for p in hist]
-            self.trail_curve.setData(tx, ty)
-
-        # Persistent circularity track & boundary dots (Stage 2 only)
-        if self.current_stage == 2:
-            pts = self.analyzer.boundary_points
-            if pts:
-                bx = [p[0] for p in pts]
-                by = [p[1] for p in pts]
-                self.circularity_track_curve.setData(bx, by)
-                valid_bx = [p[0] for p in pts if not math.isnan(p[0])]
-                valid_by = [p[1] for p in pts if not math.isnan(p[1])]
-                self.scatter_boundary.setData(valid_bx, valid_by)
 
         # Permanent metrics line at the bottom
         if self.current_stage == 0:
@@ -306,7 +345,7 @@ class StickWidget(QWidget):
         elif self.current_stage == 3:
             if self.target_zone_idx < len(self.TARGET_ZONES):
                 zone = self.TARGET_ZONES[self.target_zone_idx]
-                self.active_target_scatter.setData([zone["x"]], [zone["y"]])
+                self.canvas.active_target_idx = self.target_zone_idx
                 dist = math.hypot(x - zone["x"], y - zone["y"])
 
                 zone_title = tr(zone["key"])
@@ -326,10 +365,11 @@ class StickWidget(QWidget):
                         self.analyzer.is_inside_target = False
                         self.analyzer.clear_target_samples()
                         if self.target_zone_idx < len(self.TARGET_ZONES):
+                            self.canvas.active_target_idx = self.target_zone_idx
                             next_name = tr(self.TARGET_ZONES[self.target_zone_idx]["key"])
                             self.lbl_hint.setText(tr("hint_targets_move", zone=next_name))
                         else:
-                            self.active_target_scatter.setVisible(False)
+                            self.canvas.active_target_idx = None
                             self.lbl_hint.setText(tr("hint_targets_done", noise=self.analyzer.peak_jitter_pct))
                 else:
                     self.analyzer.is_inside_target = False
@@ -339,7 +379,7 @@ class StickWidget(QWidget):
                     self.lbl_hint.setText(tr("hint_targets_move", zone=zone_title))
             else:
                 self.analyzer.is_inside_target = False
-                self.active_target_scatter.setVisible(False)
+                self.canvas.active_target_idx = None
                 self.lbl_hint.setText(tr("hint_targets_done", noise=self.analyzer.peak_jitter_pct))
 
         elif self.current_stage == 4:
@@ -349,3 +389,5 @@ class StickWidget(QWidget):
                 self.lbl_hint.setText(tr("hint_snapback_y"))
             else:
                 self.lbl_hint.setText(tr("hint_snapback_done", x_rate=int(self.analyzer.snapback_rate_x_pct), y_rate=int(self.analyzer.snapback_rate_y_pct)))
+
+        self.canvas.update()

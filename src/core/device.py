@@ -9,11 +9,12 @@ import time
 import fcntl
 import struct
 import threading
-from typing import Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 from .constants import (
-    EV_FF, FF_RUMBLE, EVIOCSFF, EVIOCGID,
-    ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ, ABS_BRAKE, ABS_GAS
+    EV_FF, EV_ABS, FF_RUMBLE, EVIOCSFF, EVIOCGID, EVIOCGBIT_ABS,
+    ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ, ABS_BRAKE, ABS_GAS,
+    ABS_MT_POSITION_X, ABS_MT_POSITION_Y
 )
 from .profiles import detect_layout_flavor
 
@@ -72,7 +73,18 @@ class GamepadDevice:
         # Sibling devices (Touchpad & Motion Sensors)
         self.has_touchpad: bool = False
         self.has_motion: bool = False
+        self.touchpad_event_path: Optional[str] = None
+        self.motion_event_path: Optional[str] = None
+        self.touchpad_abs_info: Dict[int, Tuple[int, int, int]] = {}
+        self.motion_abs_info: Dict[int, Tuple[int, int, int]] = {}
         self._probe_siblings()
+
+        # Check if primary node itself exposes multitouch touchpad axes
+        if not self.has_touchpad and (ABS_MT_POSITION_X in self.abs_bits and ABS_MT_POSITION_Y in self.abs_bits):
+            self.has_touchpad = True
+            self.touchpad_event_path = self.event_path
+            if self.event_path:
+                self.touchpad_abs_info = self._read_node_abs_info(self.event_path)
 
     def _check_ff_support(self) -> bool:
         """Checks if event device supports Force Feedback (EV_FF)."""
@@ -124,15 +136,59 @@ class GamepadDevice:
                 lines = entry.splitlines()
                 p_line = next((l for l in lines if l.startswith('P: Phys=')), '')
                 n_line = next((l for l in lines if l.startswith('N: Name=')), '')
+                h_line = next((l for l in lines if l.startswith('H: Handlers=')), '')
                 entry_phys = p_line.split('=', 1)[1].strip() if p_line else ''
                 entry_name = n_line.split('=', 1)[1].strip().strip('\"') if n_line else ''
 
                 if entry_phys and (entry_phys == target_phys or (phys_prefix and entry_phys.startswith(phys_prefix))):
+                    ev_node = None
+                    if 'Handlers=' in h_line:
+                        for tok in h_line.split('Handlers=')[1].split():
+                            if tok.startswith('event'):
+                                ev_node = f'/dev/input/{tok}'
+                                break
+
                     lower = entry_name.lower()
                     if 'touchpad' in lower:
                         self.has_touchpad = True
-                    if 'motion' in lower or 'sensor' in lower or 'gyro' in lower or 'accelerometer' in lower:
+                        if ev_node and not self.touchpad_event_path:
+                            self.touchpad_event_path = ev_node
+                            self.touchpad_abs_info = self._read_node_abs_info(ev_node)
+                    if 'motion' in lower or 'sensor' in lower or 'gyro' in lower or 'accelerometer' in lower or 'imu' in lower:
                         self.has_motion = True
+                        if ev_node and not self.motion_event_path:
+                            self.motion_event_path = ev_node
+                            self.motion_abs_info = self._read_node_abs_info(ev_node)
+
+    def _read_node_abs_info(self, event_path: str) -> Dict[int, Tuple[int, int, int]]:
+        """Reads (min, max, resolution) for all EV_ABS axes of a companion event node."""
+        info: Dict[int, Tuple[int, int, int]] = {}
+        try:
+            fd = os.open(event_path, os.O_RDONLY | os.O_NONBLOCK)
+            buf_bits = bytearray(8)
+            fcntl.ioctl(fd, EVIOCGBIT_ABS, buf_bits)
+            abs_codes = set()
+            for byte_idx, byte_val in enumerate(buf_bits):
+                if byte_val:
+                    for bit in range(8):
+                        if byte_val & (1 << bit):
+                            abs_codes.add(byte_idx * 8 + bit)
+            for code in abs_codes:
+                buf = bytearray(24)
+                fcntl.ioctl(fd, 0x80184540 + code, buf)
+                val, amin, amax, fuzz, flat, res = struct.unpack('iiiiii', buf)
+                info[code] = (amin, amax, res)
+            os.close(fd)
+        except Exception:
+            try:
+                import evdev
+                dev = evdev.InputDevice(event_path)
+                for code, absinfo in dev.capabilities().get(evdev.ecodes.EV_ABS, []):
+                    info[code] = (absinfo.min, absinfo.max, absinfo.resolution)
+                dev.close()
+            except Exception:
+                pass
+        return info
 
     def _read_abs_info(self):
         """Reads min and max ranges for all ABS axes via ioctl or evdev."""

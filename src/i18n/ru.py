@@ -19,9 +19,10 @@ TRANSLATIONS = {
 
     # Tabs
     "tab_sticks": "🎯 Стики и курки",
-    "tab_buttons": "🔘 Кнопки и дребезг (<7мс)",
+    "tab_buttons": "🔘 Кнопки и дребезг",
     "tab_polling": "⚡ Частота опроса (Hz)",
     "tab_feedback": "📳 Вибрация и подсветка",
+    "tab_touchpad_gyro": "🧭 Тачпад и гироскоп",
     "tab_report": "📋 Паспорт / Отчёт",
 
     # -------------------------------------------------------------------------
@@ -132,13 +133,13 @@ TRANSLATIONS = {
     # -------------------------------------------------------------------------
     # Buttons & Debounce Table
     # -------------------------------------------------------------------------
-    "buttons_title": "<b>Тестирование кнопок, крестовины (D-Pad) и детектор дребезга контактов (&lt; 7 мс)</b>",
+    "buttons_title": "<b>Тестирование кнопок, крестовины (D-Pad) и детектор дребезга контактов</b>",
     "btn_clear_counters": "Сбросить счётчики",
     "col_btn_code": "Код (Hex / Dec)",
     "col_btn_name": "Назначение кнопки",
     "col_btn_state": "Состояние",
     "col_btn_presses": "Нажатий",
-    "col_btn_chatter": "Дребезг (<7мс)",
+    "col_btn_chatter": "Дребезг",
     "col_btn_min_dt": "Мин. интервал",
     "chatter_log_title": "<b>Журнал событий дребезга (Ложные / повторные срабатывания &lt; 7 мс):</b>",
 
@@ -351,4 +352,19 @@ TRANSLATIONS = {
     "diagram_telemetry": "LS: X:{lx:+.2f} Y:{ly:+.2f}  |  RS: X:{rx:+.2f} Y:{ry:+.2f}  |  LT: {lt}%  RT: {rt}%",
     "diagram_last_btn": "Последняя: {btn}",
     "diagram_no_press": "Ожидание ввода...",
+
+    # Touchpad & Gyroscope / IMU
+    "touchpad_group_title": "Сенсорная панель (Touchpad)",
+    "tp_no_device": "Контроллер не выбран.",
+    "tp_unsupported": "⚠️ Тачпад не обнаружен на текущем контроллере (или отсутствует в дескрипторе).",
+    "tp_coords_fmt": "Палец 1: {f1}  |  Палец 2: {f2}\nКлик панели: {click} ({clicks})  |  Касаний: {touches}",
+    "gyro_group_title": "Гироскоп и Акселерометр (IMU)",
+    "gyro_no_device": "Контроллер не выбран.",
+    "gyro_unsupported": "⚠️ Гироскоп / IMU не обнаружен на текущем контроллере (или не поддерживается драйвером).",
+    "gyro_rot_title": "Поворот (Углы / Скорость)",
+    "gyro_shift_title": "Смещение (Δg / Акселерометр)",
+    "btn_gyro_recenter": "🎯 Центр / Калибр.",
+    "gyro_plot_axis_y": "Угол (°)",
+    "gyro_plot_axis_x": "Время (с)",
+    "unit_deg_s": "°/с",
 }

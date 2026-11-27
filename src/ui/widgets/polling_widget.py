@@ -1,13 +1,13 @@
 """
-Polling Rate & Jitter Waveform Widget (PyQtGraph)
+Polling Rate & Jitter Waveform Widget (Custom QPainter)
 Displays current communication bus frequency (Hz), inter-packet interval delta (dt),
 and standard deviation jitter (ms).
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Qt, QTimer
-import pyqtgraph as pg
 
+from .plot_canvas import TimeSeriesCanvas
 from ...analysis.polling import PollingAnalyzer
 from ...i18n import tr, i18n
 
@@ -45,20 +45,23 @@ class PollingWidget(QWidget):
         banner.addWidget(self.lbl_stats, alignment=Qt.AlignRight)
         layout.addLayout(banner)
 
-        # PyQtGraph Plot for packet deltas
-        self.plot = pg.PlotWidget()
-        self.plot.setBackground('#111827')
-        self.plot.showGrid(x=True, y=True, alpha=0.3)
-        self.plot.setLabel('left', tr("axis_polling_dt"))
-        self.plot.setLabel('bottom', tr("axis_polling_idx"))
-        self.plot.setXRange(0, 300, padding=0.01)
-        self.plot.setYRange(0, 8)
-
-        # Reference target line (e.g. 1.0 ms for 1000 Hz, 4.0 ms for 250 Hz, 8.0 ms for 125 Hz)
-        self.target_line = self.plot.plot([0, 300], [4.0, 4.0], pen=pg.mkPen('#10B981', width=1.5, style=Qt.DashLine))
-
-        self.curve = self.plot.plot([], [], pen=pg.mkPen('#0284C7', width=1.5))
-        layout.addWidget(self.plot)
+        # Custom QPainter TimeSeriesCanvas for packet deltas
+        self.plot = TimeSeriesCanvas(
+            y_min=0.0,
+            y_max=8.0,
+            x_min=0.0,
+            x_max=300.0,
+            auto_y=True,
+            auto_x=False,
+            min_y_span=8.0,
+            show_legend=False,
+            x_label=tr("axis_polling_idx"),
+            y_label=tr("axis_polling_dt"),
+        )
+        self.plot.set_ref_lines([
+            {"y": 4.0, "color": "#10B981", "width": 1.5, "dashed": True},
+        ])
+        layout.addWidget(self.plot, stretch=1)
 
         self.lbl_note = QLabel(tr("polling_note"))
         self.lbl_note.setStyleSheet("font-size: 11px; color: #94A3B8;")
@@ -73,15 +76,13 @@ class PollingWidget(QWidget):
         """Retranslates all text elements to active language."""
         self.lbl_title.setText(tr("polling_title"))
         self.btn_reset.setText(tr("btn_reset_stats"))
-        self.plot.setLabel('left', tr("axis_polling_dt"))
-        self.plot.setLabel('bottom', tr("axis_polling_idx"))
+        self.plot.set_labels(x_label=tr("axis_polling_idx"), y_label=tr("axis_polling_dt"))
         self.lbl_note.setText(tr("polling_note"))
         self.update_view()
 
     def reset_data(self):
         self.analyzer.reset()
-        self.curve.setData([], [])
-        self.plot.setXRange(0, 300, padding=0.01)
+        self.plot.set_series([])
 
     def update_view(self):
         hz = self.analyzer.current_hz if self.analyzer.current_hz > 0 else float(self.analyzer.nominal_hz)
@@ -101,7 +102,9 @@ class PollingWidget(QWidget):
             color = "#F59E0B"  # 125 Hz (Standard USB HID)
 
         self.lbl_hz.setStyleSheet(f"font-size: 32px; color: {color}; font-weight: bold;")
-        self.target_line.setData([0, 300], [target_ms, target_ms])
+        self.plot.set_ref_lines([
+            {"y": target_ms, "color": "#10B981", "width": 1.5, "dashed": True},
+        ])
 
         conn_type = tr("polling_conn_wireless") if self.analyzer.is_wireless else tr("polling_conn_wired")
         drops_tag = f"{tr('polling_drops')} <b>{self.analyzer.dropped_packets_count}</b>" if self.analyzer.is_wireless else tr("polling_drops_excluded")
@@ -117,18 +120,6 @@ class PollingWidget(QWidget):
         plot_source = self.analyzer._norm_deltas_ms if self.analyzer._norm_deltas_ms else self.analyzer._deltas_ms
         if plot_source:
             deltas = list(plot_source)[-300:]
-            self.curve.setData(list(range(len(deltas))), deltas)
-
-            # Proportional vertical range around nominal target
-            if target_ms <= 1.5:
-                y_max = 3.0   # 1000 Hz (1 ms centered)
-            elif target_ms <= 3.0:
-                y_max = 5.0   # 500 Hz (2 ms centered)
-            elif target_ms <= 6.0:
-                y_max = 8.0   # 250 Hz / 200 Hz (4-5 ms centered)
-            else:
-                y_max = 16.0  # 125 Hz (8 ms centered)
-
-            max_d = max(deltas)
-            self.plot.setYRange(0, max(y_max, max_d * 1.25))
-            self.plot.setXRange(0, 300, padding=0.01)
+            self.plot.set_series([
+                {"name": "dt", "color": "#0284C7", "width": 1.6, "xs": list(range(len(deltas))), "ys": deltas},
+            ])

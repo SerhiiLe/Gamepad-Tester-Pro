@@ -356,8 +356,9 @@ class TestGamepadAnalyzers(unittest.TestCase):
         w_trig.update_values()
         self.assertEqual(w_trig.bar_l.value(), int(l_pct))
         self.assertEqual(w_trig.bar_r.value(), int(r_pct))
-        self.assertIn("%", w_trig.lbl_l_val.text())
-        self.assertIn("%", w_trig.lbl_r_val.text())
+        from PySide6.QtWidgets import QSizePolicy
+        self.assertEqual(w_trig.bar_l.sizePolicy().verticalPolicy(), QSizePolicy.Expanding)
+        self.assertEqual(w_trig.bar_r.sizePolicy().verticalPolicy(), QSizePolicy.Expanding)
 
     def test_buttons_diagram_widget(self):
         """Verifies ButtonsDiagramWidget 3-state verification, progress tracking, and subtab integration."""
@@ -852,6 +853,132 @@ class TestGamepadAnalyzers(unittest.TestCase):
         self.assertEqual(l_pct, 0.0)
 
         win.close()
+
+    def test_touchpad_and_motion_diagnostics(self):
+        """Verifies TouchpadAnalyzer, MotionAnalyzer 3D wireframe clipping, and TouchpadMotionWidget."""
+        import os
+        import math
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+
+        from src.analysis.touchpad import TouchpadAnalyzer
+        from src.analysis.motion import MotionAnalyzer
+        from src.ui.widgets.touchpad_motion_widget import (
+            TouchpadMotionWidget, extract_visible_arc_segments, _transform_pt
+        )
+        from src.core.constants import (
+            EV_KEY, EV_ABS, EV_SYN,
+            ABS_X, ABS_Y, ABS_Z, ABS_RX, ABS_RY, ABS_RZ,
+            ABS_MT_SLOT, ABS_MT_TRACKING_ID, ABS_MT_POSITION_X, ABS_MT_POSITION_Y,
+            BTN_LEFT
+        )
+
+        # 1. TouchpadAnalyzer multitouch & physical click
+        tp = TouchpadAnalyzer()
+        tp.set_raw_ranges(0, 1919, 0, 1079)
+        tp.process_event(EV_ABS, ABS_MT_SLOT, 0)
+        tp.process_event(EV_ABS, ABS_MT_TRACKING_ID, 42)
+        tp.process_event(EV_ABS, ABS_MT_POSITION_X, 960)
+        tp.process_event(EV_ABS, ABS_MT_POSITION_Y, 540)
+        tp.process_event(EV_KEY, BTN_LEFT, 1)
+
+        slots, clicked, clicks, touches = tp.get_snapshot()
+        self.assertTrue(slots[0]["active"])
+        self.assertAlmostEqual(slots[0]["norm_x"], 0.5, places=2)
+        self.assertAlmostEqual(slots[0]["norm_y"], 0.5, places=2)
+        self.assertTrue(clicked)
+        self.assertEqual(clicks, 1)
+        self.assertEqual(touches, 1)
+
+        tp.process_event(EV_ABS, ABS_MT_TRACKING_ID, -1)
+        tp.process_event(EV_KEY, BTN_LEFT, 0)
+        slots, clicked, _, _ = tp.get_snapshot()
+        self.assertFalse(slots[0]["active"])
+        self.assertFalse(clicked)
+
+        # 2. MotionAnalyzer orientation, accelerometer shift & back-hemisphere clipping
+        motion = MotionAnalyzer()
+        motion.process_event(EV_ABS, ABS_Y, 8192, 0.0)  # 1.0g resting accel
+        motion.process_event(EV_SYN, 0, 0, 0.0)
+        motion.recenter(calibrate_bias=False)
+
+        # Rotate Pitch +120 deg (past 90 deg -> front pole moves onto back hemisphere z < 0)
+        raw_rate = int(120.0 * 1024)
+        for i in range(1, 11):
+            t = i * 0.1
+            motion.process_event(EV_ABS, ABS_RX, raw_rate, t)
+            motion.process_event(EV_ABS, ABS_Y, 4096, t)  # 0.5g -> shift -0.5g
+            motion.process_event(EV_SYN, 0, 0, t)
+
+        snap = motion.get_snapshot()
+        self.assertAlmostEqual(snap["shift_y_g"], -0.5, places=2)
+        self.assertGreater(len(snap["history"]), 5)
+
+        R = snap["rot_matrix"]
+        _, _, pz = _transform_pt(R, (0.0, 0.0, 1.0))
+        self.assertLess(pz, 0.0)  # Pole is behind sphere -> hidden
+
+        eq_pts = [(math.cos(2.0 * math.pi * i / 64), 0.0, math.sin(2.0 * math.pi * i / 64)) for i in range(64)]
+        vis_segs = extract_visible_arc_segments(R, eq_pts)
+        # Roughly half the great circle is visible (front hemisphere z >= 0)
+        self.assertGreater(len(vis_segs), 20)
+        self.assertLess(len(vis_segs), 40)
+
+        # 3. TouchpadMotionWidget UI + availability banners + repaint
+        class MockDev:
+            def __init__(self, has_tp, has_imu):
+                self.has_touchpad = has_tp
+                self.has_motion = has_imu
+
+        w = TouchpadMotionWidget(tp, motion)
+        w.set_current_device(MockDev(False, False))
+        self.assertFalse(w.lbl_tp_status.isHidden())
+        self.assertFalse(w.lbl_gyro_status.isHidden())
+        self.assertFalse(w.btn_recenter.isEnabled())
+
+        w.set_current_device(MockDev(True, True))
+        self.assertTrue(w.lbl_tp_status.isHidden())
+        self.assertTrue(w.lbl_gyro_status.isHidden())
+        self.assertTrue(w.btn_recenter.isEnabled())
+
+        w.resize(900, 600)
+        w.tp_canvas.repaint()
+        w.gyro_canvas.repaint()
+        w.plot.repaint()
+        w._on_tick()
+        w.retranslate_ui()
+        w._recenter_gyro()
+        snap_after = motion.get_snapshot()
+        self.assertAlmostEqual(snap_after["pitch_deg"], 0.0, places=3)
+
+        # 4. Also verify StickWidget, StickOscilloscopeWidget, and PollingWidget QPainter canvases
+        from src.ui.widgets.stick_widget import StickWidget
+        from src.ui.widgets.snapback_widget import StickOscilloscopeWidget
+        from src.ui.widgets.polling_widget import PollingWidget
+        from src.analysis.polling import PollingAnalyzer
+
+        stick_an = StickAnalyzer("TestStick")
+        stick_an.update_axis(0x00, 16000, 1.0, is_x=True)
+        stick_an.update_axis(0x01, -16000, 1.01, is_x=False)
+        sw = StickWidget(stick_an)
+        sw._on_stage_changed(2)
+        sw.update_view()
+        sw.canvas.repaint()
+        sw._on_stage_changed(3)
+        sw.update_view()
+        sw.canvas.repaint()
+
+        osc = StickOscilloscopeWidget(stick_an)
+        osc.update_plot()
+        osc.plot.repaint()
+
+        pa = PollingAnalyzer()
+        for k in range(10):
+            pa.record_packet(100.0 + k * 0.001)
+        pw = PollingWidget(pa)
+        pw.update_view()
+        pw.plot.repaint()
 
 
 if __name__ == "__main__":

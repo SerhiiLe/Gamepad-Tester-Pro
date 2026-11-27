@@ -17,7 +17,9 @@ from ..core.constants import (
     EV_KEY, EV_ABS, EV_SYN,
     ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_Z, ABS_RZ, ABS_BRAKE, ABS_GAS,
     ABS_HAT0X, ABS_HAT0Y,
-    BTN_DPAD_UP, BTN_DPAD_DOWN, BTN_DPAD_LEFT, BTN_DPAD_RIGHT
+    ABS_MT_SLOT, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TRACKING_ID,
+    BTN_DPAD_UP, BTN_DPAD_DOWN, BTN_DPAD_LEFT, BTN_DPAD_RIGHT,
+    BTN_LEFT, BTN_TOUCH
 )
 from ..core.device import GamepadDevice
 from ..core.discovery import discover_gamepads
@@ -28,6 +30,8 @@ from ..analysis.polling import PollingAnalyzer
 from ..analysis.buttons import ButtonsAnalyzer
 from ..analysis.sticks import StickAnalyzer
 from ..analysis.triggers import TriggersAnalyzer
+from ..analysis.touchpad import TouchpadAnalyzer
+from ..analysis.motion import MotionAnalyzer
 from ..feedback.rumble import RumbleController
 from ..feedback.leds import LedController
 
@@ -41,6 +45,7 @@ from .widgets.trigger_widget import TriggerWidget
 from .widgets.buttons_container import ButtonsViewWidget
 from .widgets.polling_widget import PollingWidget
 from .widgets.feedback_widget import FeedbackWidget
+from .widgets.touchpad_motion_widget import TouchpadMotionWidget
 from .widgets.report_widget import ReportWidget
 
 
@@ -58,12 +63,16 @@ class MainWindow(QMainWindow):
         self.current_device: Optional[GamepadDevice] = None
         self.current_profile_key: str = "standard"
         self.input_reader: Optional[InputReader] = None
+        self.touchpad_reader: Optional[InputReader] = None
+        self.motion_reader: Optional[InputReader] = None
 
         self.polling_analyzer = PollingAnalyzer()
         self.buttons_analyzer = ButtonsAnalyzer()
         self.left_stick_analyzer = StickAnalyzer(name=tr("stick_left_name"))
         self.right_stick_analyzer = StickAnalyzer(name=tr("stick_right_name"))
         self.triggers_analyzer = TriggersAnalyzer()
+        self.touchpad_analyzer = TouchpadAnalyzer()
+        self.motion_analyzer = MotionAnalyzer()
         self.rumble_controller = RumbleController()
         self.led_controller = LedController()
 
@@ -151,9 +160,6 @@ class MainWindow(QMainWindow):
         self.w_stick_left = StickWidget(self.left_stick_analyzer, title="Левый стик (LS)", title_key="stick_left_name")
         top_row.addWidget(self.w_stick_left, stretch=3)
 
-        self.w_triggers = TriggerWidget(self.triggers_analyzer)
-        top_row.addWidget(self.w_triggers, stretch=0)
-
         self.w_stick_right = StickWidget(self.right_stick_analyzer, title="Правый стик (RS)", title_key="stick_right_name")
         top_row.addWidget(self.w_stick_right, stretch=3)
 
@@ -173,6 +179,9 @@ class MainWindow(QMainWindow):
 
         self.w_snapback_right = StickOscilloscopeWidget(self.right_stick_analyzer, title="Правый стик (RS)", title_key="stick_right_name")
         bot_row.addWidget(self.w_snapback_right, stretch=1)
+
+        self.w_triggers = TriggerWidget(self.triggers_analyzer)
+        bot_row.addWidget(self.w_triggers, stretch=0)
 
         l_sticks.addLayout(bot_row, stretch=4)
 
@@ -196,7 +205,11 @@ class MainWindow(QMainWindow):
         self.w_feedback = FeedbackWidget(self.rumble_controller, self.led_controller)
         self.tabs.addTab(self.w_feedback, tr("tab_feedback"))
 
-        # Tab 5: Diagnostic Report & PDF Export
+        # Tab 5: Touchpad & Gyroscope / IMU
+        self.w_touchpad_motion = TouchpadMotionWidget(self.touchpad_analyzer, self.motion_analyzer)
+        self.tabs.addTab(self.w_touchpad_motion, tr("tab_touchpad_gyro"))
+
+        # Tab 6: Diagnostic Report & PDF Export
         self.w_report = ReportWidget(self)
         self.tabs.addTab(self.w_report, tr("tab_report"))
 
@@ -227,7 +240,8 @@ class MainWindow(QMainWindow):
         self.tabs.setTabText(1, tr("tab_buttons"))
         self.tabs.setTabText(2, tr("tab_polling"))
         self.tabs.setTabText(3, tr("tab_feedback"))
-        self.tabs.setTabText(4, tr("tab_report"))
+        self.tabs.setTabText(4, tr("tab_touchpad_gyro"))
+        self.tabs.setTabText(5, tr("tab_report"))
 
         if not self.devices and self.combo_devices.count() > 0:
             self.combo_devices.setItemText(0, tr("no_controllers_found"))
@@ -244,6 +258,7 @@ class MainWindow(QMainWindow):
         self.w_buttons.retranslate_ui()
         self.w_polling.retranslate_ui()
         self.w_feedback.retranslate_ui()
+        self.w_touchpad_motion.retranslate_ui()
         self.w_report.retranslate_ui()
 
     def _on_tab_changed(self, index: int):
@@ -251,11 +266,17 @@ class MainWindow(QMainWindow):
         if self.tabs.widget(index) == self.w_feedback:
             self.w_feedback.auto_select_tab()
 
+    def _stop_readers(self):
+        """Stops all active background input reader threads."""
+        for attr in ("input_reader", "touchpad_reader", "motion_reader"):
+            reader = getattr(self, attr, None)
+            if reader:
+                reader.stop()
+                setattr(self, attr, None)
+
     def rescan_devices(self):
         """Discovers connected controllers and updates device combo."""
-        if self.input_reader:
-            self.input_reader.stop()
-            self.input_reader = None
+        self._stop_readers()
 
         for d in self.devices:
             d.close()
@@ -269,6 +290,7 @@ class MainWindow(QMainWindow):
             self.rumble_controller.set_device(None)
             self.led_controller.set_device(None)
             self.w_feedback.set_current_device(None)
+            self.w_touchpad_motion.set_current_device(None)
             return
 
         for idx, dev in enumerate(self.devices):
@@ -286,6 +308,7 @@ class MainWindow(QMainWindow):
         self.rumble_controller.set_device(dev)
         self.led_controller.set_device(dev)
         self.w_feedback.set_current_device(dev)
+        self.w_touchpad_motion.set_current_device(dev)
 
         idx = self.combo_profiles.findData(dev.layout_flavor)
         if idx >= 0:
@@ -301,6 +324,8 @@ class MainWindow(QMainWindow):
         self.left_stick_analyzer.reset()
         self.right_stick_analyzer.reset()
         self.triggers_analyzer.reset()
+        self.touchpad_analyzer.reset()
+        self.motion_analyzer.reset()
 
         self.w_snapback_left.clear_plot()
         self.w_snapback_right.clear_plot()
@@ -308,13 +333,36 @@ class MainWindow(QMainWindow):
         # Configure physical axis ranges and mappings for Left and Right sticks and triggers
         self._update_axis_mappings()
 
-        if self.input_reader:
-            self.input_reader.stop()
-            self.input_reader = None
+        # Configure touchpad and motion sensor bounds
+        tp_info = getattr(dev, 'touchpad_abs_info', {})
+        if ABS_MT_POSITION_X in tp_info and ABS_MT_POSITION_Y in tp_info:
+            min_x, max_x, _ = tp_info[ABS_MT_POSITION_X]
+            min_y, max_y, _ = tp_info[ABS_MT_POSITION_Y]
+            self.touchpad_analyzer.set_raw_ranges(min_x, max_x, min_y, max_y)
+        elif ABS_X in tp_info and ABS_Y in tp_info:
+            min_x, max_x, _ = tp_info[ABS_X]
+            min_y, max_y, _ = tp_info[ABS_Y]
+            self.touchpad_analyzer.set_raw_ranges(min_x, max_x, min_y, max_y)
+
+        motion_info = getattr(dev, 'motion_abs_info', {})
+        if motion_info:
+            self.motion_analyzer.configure_axes(motion_info)
+
+        self._stop_readers()
 
         if dev.event_path:
             self.input_reader = InputReader(dev.event_path, event_callback=self._on_input_event)
             self.input_reader.start()
+
+        tp_path = getattr(dev, 'touchpad_event_path', None)
+        if tp_path and tp_path != dev.event_path:
+            self.touchpad_reader = InputReader(tp_path, event_callback=self._on_touchpad_event)
+            self.touchpad_reader.start()
+
+        motion_path = getattr(dev, 'motion_event_path', None)
+        if motion_path and motion_path not in (dev.event_path, tp_path):
+            self.motion_reader = InputReader(motion_path, event_callback=self._on_motion_event)
+            self.motion_reader.start()
 
     def _update_axis_mappings(self):
         """Resolves axis codes for Left/Right sticks and Triggers from active profile and device."""
@@ -500,6 +548,24 @@ class MainWindow(QMainWindow):
             elif code in (self._trig_l_axis, self._trig_r_axis, ABS_BRAKE, ABS_GAS):
                 trig_name = get_axis_info(self.current_profile_key, code)
                 self.triggers_analyzer.update_trigger(code, val, name=trig_name)
+                return
+
+            # Inline multitouch touchpad axes if exposed on primary event node
+            if code in (ABS_MT_SLOT, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TRACKING_ID):
+                self.touchpad_analyzer.process_event(event.ev_type, code, val)
+
+        # Inline touchpad click/touch forwarding if exposed on primary node
+        if (event.ev_type == EV_KEY and event.code in (BTN_LEFT, BTN_TOUCH) and
+                self.current_device and self.current_device.touchpad_event_path == self.current_device.event_path):
+            self.touchpad_analyzer.process_event(event.ev_type, event.code, event.value)
+
+    def _on_touchpad_event(self, event: RawInputEvent):
+        """Callback invoked from companion touchpad InputReader thread."""
+        self.touchpad_analyzer.process_event(event.ev_type, event.code, event.value)
+
+    def _on_motion_event(self, event: RawInputEvent):
+        """Callback invoked from companion motion-sensor InputReader thread."""
+        self.motion_analyzer.process_event(event.ev_type, event.code, event.value, event.timestamp)
 
     def _on_gui_tick(self):
         """Periodic tick on Qt main thread for widgets that update smoothly."""
@@ -525,8 +591,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Clean shutdown of threads and actuators."""
-        if self.input_reader:
-            self.input_reader.stop()
+        self._stop_readers()
         for d in self.devices:
             d.close()
         event.accept()

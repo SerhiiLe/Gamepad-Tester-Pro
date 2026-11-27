@@ -34,6 +34,22 @@ ABS_HAT0Y      = 0x11
 ABS_HAT1X      = 0x12
 ABS_HAT1Y      = 0x13
 
+# Linux Multitouch (Touchpad) Axes
+ABS_MT_SLOT        = 0x2F
+ABS_MT_TOUCH_MAJOR = 0x30
+ABS_MT_POSITION_X  = 0x35
+ABS_MT_POSITION_Y  = 0x36
+ABS_MT_TRACKING_ID = 0x39
+
+# Touchpad & Mouse Click / Touch Keys
+BTN_LEFT           = 0x110
+BTN_TOOL_FINGER    = 0x145
+BTN_TOUCH          = 0x14A
+BTN_TOOL_DOUBLETAP = 0x14D
+
+# Misc Event Codes
+MSC_TIMESTAMP      = 0x05
+
 # Linux Key / Button Codes
 # BTN_MISC / Classic Joystick (DirectInput 0x120-0x12F)
 BTN_JOYSTICK   = 0x120

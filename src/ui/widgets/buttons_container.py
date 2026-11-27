@@ -32,11 +32,7 @@ class ButtonsViewWidget(QWidget):
 
         self.sub_tabs = QTabWidget()
 
-        # Subtab 0: Table
-        self.w_table = ButtonsTableWidget(buttons_analyzer)
-        self.sub_tabs.addTab(self.w_table, tr("tab_buttons_table"))
-
-        # Subtab 1: Diagram
+        # Subtab 0: Diagram
         self.w_diagram = ButtonsDiagramWidget(
             buttons_analyzer=buttons_analyzer,
             left_stick_analyzer=left_stick_analyzer,
@@ -45,6 +41,10 @@ class ButtonsViewWidget(QWidget):
             profile_getter=profile_getter
         )
         self.sub_tabs.addTab(self.w_diagram, tr("tab_buttons_diagram"))
+
+        # Subtab 1: Table
+        self.w_table = ButtonsTableWidget(buttons_analyzer)
+        self.sub_tabs.addTab(self.w_table, tr("tab_buttons_table"))
 
         # When table clear is clicked, also reset diagram tested states
         self.w_table.btn_clear.clicked.connect(self.w_diagram.reset_tested)
